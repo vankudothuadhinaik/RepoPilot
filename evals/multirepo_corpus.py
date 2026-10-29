@@ -71,9 +71,23 @@ def _remove_evaluation_artifacts(destination: Path) -> None:
         candidate = eval_dir / relative
         if candidate.is_file():
             candidate.unlink()
+    corpora = eval_dir / "corpora"
+    if corpora.is_dir():
+        shutil.rmtree(corpora)
     audit_report = destination / "docs" / "evaluation_audit.md"
     if audit_report.is_file():
         audit_report.unlink()
+    for relative in (
+        "retrieval_benchmark_results.json",
+        "repository_benchmark_results.json",
+        "provider-evaluation.json",
+        "coverage.xml",
+        "multirepo_ground_truth_results.json",
+        "multi_repository_benchmark_matrix.json",
+    ):
+        candidate = destination / relative
+        if candidate.is_file():
+            candidate.unlink()
 
 
 def _clean_root(root: Path, destination: Path) -> None:
