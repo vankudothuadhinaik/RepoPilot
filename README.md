@@ -1,49 +1,94 @@
 # RepoPilot
 
-RepoPilot is a local-first repository intelligence tool. It indexes a codebase, searches source with SQLite FTS5, discovers symbols and import relationships, retrieves line-addressable evidence, and stores engineering notes.
+<p align="center">
+  <strong>Repository intelligence with evidence you can inspect.</strong><br/>
+  Index a local codebase, search its source, trace symbols and imports, and retrieve line-addressable evidence — without letting an automated agent execute repository commands or apply patches.
+</p>
 
-It is intended for developers investigating unfamiliar repositories without allowing an automated agent to execute repository commands or apply patches.
+<p align="center">
+  <a href="https://github.com/vankudothuadhinaik/RepoPilot/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/vankudothuadhinaik/RepoPilot/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/vankudothuadhinaik/RepoPilot/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://github.com/vankudothuadhinaik/RepoPilot/actions/workflows/codeql.yml/badge.svg?branch=main"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <img alt="Python 3.11–3.12" src="https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB.svg">
+  <img alt="Local-first" src="https://img.shields.io/badge/storage-local--first-555.svg">
+</p>
 
-## Current implementation
+RepoPilot is a local-first repository investigation tool for developers exploring unfamiliar codebases. It combines incremental indexing, SQLite full-text search, Python symbol extraction, conservative import/include relationships, cited evidence, optional grounded answers, and an optional web dashboard.
 
-- Local repository registration and content-hash-based incremental re-indexing.
-- Secret-path, generated-directory, binary, symlink, and 1 MB file-size filtering.
-- Python AST symbols with nested qualified names, signatures, and source ranges.
-- Conservative import/include extraction for Python, JavaScript/TypeScript, Java/Kotlin, Go, C/C++, Rust, and C#.
-- SQLite metadata, FTS5 search, language/path filters, symbols, graphs, files, memories, and evidence citations.
-- Optional OpenAI-compatible grounded answers with retrieval-only fallback.
-- Optional MCP tools and a React/Vite dashboard.
-- Hardened Docker Compose deployment with Doppler-supplied API authentication.
+> **Project status:** MVP for local development and evaluation. The repository's synthetic benchmark is a repeatable smoke/evaluation aid, not evidence of production retrieval accuracy. See [Evaluation and evidence](#evaluation-and-evidence).
 
-This remains an MVP. Semantic embeddings/reranking, complete compiler-level call graphs, background jobs, multi-user tenancy, cloud import, patch application, command execution, rate limiting, and production identity/authorization are not implemented. The synthetic retrieval benchmark is not a real-world accuracy claim.
+## What it does
 
-## Architecture
+- **Indexes local repositories** with content-hash-based incremental re-indexing.
+- **Filters files conservatively**, including common secret paths, generated directories, binaries, symlinks, and files larger than 1 MB.
+- **Extracts Python symbols** using the AST, including nested qualified names, signatures, and source ranges.
+- **Maps import/include relationships** conservatively across Python, JavaScript/TypeScript, Java/Kotlin, Go, C/C++, Rust, and C#.
+- **Searches locally** using SQLite FTS5 with language and path filters.
+- **Returns inspectable evidence** with repository paths and line ranges, rather than asking users to trust an uncited summary.
+- **Supports optional integrations** for OpenAI-compatible grounded answers, MCP tools, and a React/Vite dashboard.
+- **Provides a hardened local container setup** with a shared bearer token supplied at runtime through Doppler.
 
-The CLI and FastAPI application call the safe indexer. Parsed text, symbols, import edges, repository metadata, and memories are stored in SQLite/FTS5. The dashboard and optional MCP server use the same local store. `/ask` returns cited evidence and can optionally call an OpenAI-compatible provider; it does not claim unsupported answers.
+## Evidence and verification
 
-The image listens on container port `8000`. Compose publishes it only on host loopback port `8010`.
+This section separates automated checks from claims the project does **not** make.
 
-See [`docs/architecture.md`](docs/architecture.md).
+| Evidence source | What it establishes | What it does not establish |
+| --- | --- | --- |
+| GitHub Actions CI | The configured lint, type-check, test, compile, synthetic evaluation, frontend build, Docker build, and optional MCP import jobs pass for the tested commit when the workflow is green. | Real-world retrieval quality, hosted production readiness, or a security certification. |
+| Synthetic retrieval evaluation | A deterministic 50-query suite exercises lexical path retrieval and negative/abstention cases across three fixture repositories and 15 hand-authored source files. | Performance on representative repositories, semantic retrieval quality, or answer quality from an LLM. |
+| Docker configuration | The image can be built in CI; Compose configures loopback publishing and container hardening. | That a deployed instance is secure in every environment or has undergone external penetration testing. |
+| Authentication checks | API routes under `/api/*` use a shared bearer token; health endpoints are public. | Multi-user identity, roles, per-user authorization, rate limiting, or transport security outside loopback. |
 
-## Prerequisites
+**Latest repository CI:** [view workflow runs](https://github.com/vankudothuadhinaik/RepoPilot/actions/workflows/ci.yml). The badge above reflects the workflow status for `main`; check the run page for the exact commit and individual job results.
 
-- Python 3.11 or 3.12 with SQLite FTS5.
-- Git is optional for branch/commit metadata.
-- Docker Desktop and Compose for container deployment.
-- Doppler CLI for the supported deployment workflow.
-- Node.js 22 LTS (22.12 or newer) and npm for the dashboard; Vite 8 requires a supported Node runtime.
-
-The configured secret source is Doppler project `repopilot`, config `dev`:
+CI publishes the full synthetic retrieval report as an artifact named `repopilot-retrieval-benchmark-<commit-sha>` for 30 days. The report includes Recall@5, Recall@10, MRR@10, abstention accuracy, and per-query expected paths/ranks. Run the same evaluation locally with:
 
 ```bash
-doppler configure get project config
+PYTHONPATH=src python evals/run_eval.py
 ```
 
-Never print, commit, or place `REP_PILOT_API_TOKEN` in a tracked file or secret-bearing `.env` file.
+See [docs/evaluation.md](docs/evaluation.md) for methodology and limitations. No benchmark score is claimed here because scores should be read from the report generated for a specific commit.
 
-## Local Python development
+## Architecture at a glance
 
-macOS/Linux:
+```text
+Local repository
+      |
+      v
+Safe file discovery and parsing
+      |
+      +--> file metadata, source ranges, Python symbols
+      +--> conservative import/include edges
+      |
+      v
+SQLite + FTS5 index  <---->  repository notes / memories
+      |
+      +--> CLI
+      +--> FastAPI (bearer-protected /api/*)
+      +--> optional MCP server
+      +--> optional React/Vite dashboard
+      |
+      v
+Search results and line-addressable evidence
+      |
+      +--> optional OpenAI-compatible grounded answer
+```
+
+The application is designed for **inspection, retrieval, and evidence gathering**. It does not execute commands from indexed repositories or apply patches. See [architecture](docs/architecture.md) and the [threat model](docs/threat-model.md).
+
+## Quick start
+
+### Requirements
+
+- Python 3.11 or 3.12 with SQLite FTS5 support.
+- Git is optional and used for branch/commit metadata.
+- Docker Desktop with Compose for container deployment.
+- Doppler CLI for the documented container workflow.
+- Node.js 22 LTS (22.12 or newer) and npm for dashboard development.
+
+### Install for local development
+
+**macOS/Linux**
 
 ```bash
 python3 -m venv .venv
@@ -52,7 +97,7 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
-Windows PowerShell:
+**Windows PowerShell**
 
 ```powershell
 py -3.12 -m venv .venv
@@ -61,24 +106,26 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
-The default database is `.repopilot/repopilot.sqlite3`; set `REP_PILOT_DATA_DIR` to change it. Index a repository with:
+Index and list repositories:
 
 ```bash
 repopilot index /absolute/path/to/project
 repopilot repos
 ```
 
-Run the local API on loopback port 8000 through Doppler:
+The default database is `.repopilot/repopilot.sqlite3`. Set `REP_PILOT_DATA_DIR` to use a different data directory.
+
+Run a local API bound to loopback:
 
 ```bash
 doppler run -- repopilot serve --host 127.0.0.1 --port 8000
 ```
 
-The local API is at `http://127.0.0.1:8000`. Docker uses host port 8010 instead.
+Local API base URL: `http://127.0.0.1:8000`.
 
-## Docker Compose deployment
+## Docker Compose
 
-Compose requires a non-empty `REP_PILOT_API_TOKEN` and passes it from the Doppler process into the container. Run from the repository root:
+The supported Compose workflow uses Doppler project `repopilot`, config `dev`, to inject the required `REP_PILOT_API_TOKEN` at runtime. Never commit or print the token.
 
 ```bash
 doppler configure get project config
@@ -87,22 +134,27 @@ doppler run -- docker compose ps
 doppler run -- docker compose logs --no-color --tail=50 repopilot
 ```
 
-The service URL is [http://127.0.0.1:8010/docs](http://127.0.0.1:8010/docs). Health checks are public:
+- API documentation: [http://127.0.0.1:8010/docs](http://127.0.0.1:8010/docs)
+- Liveness: [http://127.0.0.1:8010/health/live](http://127.0.0.1:8010/health/live)
+- Readiness: [http://127.0.0.1:8010/health/ready](http://127.0.0.1:8010/health/ready)
 
-```bash
-curl http://127.0.0.1:8010/health/live
-curl http://127.0.0.1:8010/health/ready
+Compose publishes container port `8000` to host loopback port `8010`. The configured service runs as non-root, drops Linux capabilities, enables `no-new-privileges`, uses a read-only root filesystem with `/tmp` as tmpfs, and stores persistent data in the `repopilot_data` named volume.
+
+If port 8010 is occupied, change the host side only (for example `127.0.0.1:8011:8000`) and update the dashboard proxy/URLs together. Avoid stopping unrelated containers or deleting the named volume.
+
+### Authentication
+
+Every `/api/*` route requires:
+
+```http
+Authorization: Bearer <REP_PILOT_API_TOKEN>
 ```
 
-The service binds to loopback, runs as a non-root user, drops all capabilities, enables `no-new-privileges`, uses a read-only root filesystem with `/tmp` as tmpfs, and persists data in the `repopilot_data` named volume. If 8010 is occupied, change only the host side, for example `127.0.0.1:8011:8000`, and update the dashboard proxy and URLs together. Do not stop unrelated containers or delete the volume.
+Missing or invalid credentials return `401`. `/health/live` and `/health/ready` are public for monitoring. This is a single shared local token, **not** a multi-user identity or role system.
 
-## Authentication and token handling
+Example request without printing the token:
 
-Every `/api/*` route requires `Authorization: Bearer <REP_PILOT_API_TOKEN>`. Missing or invalid credentials return `401`; `/health/live` and `/health/ready` remain public for monitoring. This is one shared local token, not a user identity or role system.
-
-Use the token in memory without echoing it.
-
-macOS/Linux:
+**macOS/Linux**
 
 ```bash
 API_TOKEN="$(doppler secrets get REP_PILOT_API_TOKEN --plain)"
@@ -110,7 +162,7 @@ curl -H "Authorization: Bearer $API_TOKEN" http://127.0.0.1:8010/api/repos
 unset API_TOKEN
 ```
 
-Windows PowerShell:
+**Windows PowerShell**
 
 ```powershell
 $apiToken = doppler secrets get REP_PILOT_API_TOKEN --plain
@@ -118,22 +170,22 @@ Invoke-RestMethod -Uri http://127.0.0.1:8010/api/repos -Headers @{ Authorization
 Remove-Variable apiToken
 ```
 
-Do not run shell tracing or commands that print environment values. Compose validation without Doppler is expected to fail safely because the required interpolation is missing.
+Avoid shell tracing or commands that echo environment values. Compose validation without Doppler is expected to fail safely when the required token interpolation is missing.
 
 ## Dashboard
 
-The dashboard is a development frontend; Compose does not serve it. Its Vite proxy targets `http://127.0.0.1:8010`. From `apps/web`:
+The dashboard is a development frontend; Compose does not serve it. From `apps/web`:
 
 ```bash
 npm ci
 npm run dev
 ```
 
-Open the URL printed by Vite, enter the Doppler token in the **Local API token** password field, and then register/search repositories or retrieve evidence. The token is supplied by the user at runtime and is not hard-coded into the frontend.
+Open the URL Vite prints. Enter the token in the **Local API token** password field; it is provided at runtime and is not hard-coded in the frontend.
 
-## API usage
+## API example
 
-The Docker API base URL is `http://127.0.0.1:8010`; use port 8000 for a local server. All API examples need the bearer header:
+The following uses the Docker API base URL and the Doppler-managed token. The request body is illustrative; replace the path with a repository accessible to the process.
 
 ```bash
 API_TOKEN="$(doppler secrets get REP_PILOT_API_TOKEN --plain)"
@@ -146,19 +198,14 @@ curl -X POST http://127.0.0.1:8010/api/repos \
   -H "Content-Type: application/json" \
   -d '{"path":"/absolute/path/to/project"}'
 
-curl -X POST http://127.0.0.1:8010/api/repos/REPOSITORY_ID/search \
-  -H "Authorization: Bearer $API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"question":"authentication","limit":8}'
-
 unset API_TOKEN
 ```
 
-See [`docs/api.md`](docs/api.md) for the complete route reference and interactive `/docs` schema.
+See [docs/api.md](docs/api.md) or the interactive [OpenAPI docs](http://127.0.0.1:8010/docs) for the full route reference.
 
-## Checks and CI
+## Development checks
 
-Python checks:
+Run these from the repository root:
 
 ```bash
 python -m pytest
@@ -168,7 +215,7 @@ python -m compileall -q src
 PYTHONPATH=src python evals/run_eval.py
 ```
 
-Frontend check:
+Frontend checks:
 
 ```bash
 cd apps/web
@@ -177,25 +224,37 @@ npm audit --audit-level=moderate
 npm run build
 ```
 
-CI runs Ruff, Mypy, coverage-enabled pytest, compilation, the 50-query synthetic retrieval evaluation, frontend build, Docker image build, and optional MCP import checks on supported workflows. It publishes the retrieval report as a commit-specific artifact. CodeQL and Dependabot are also configured.
+The CI workflow runs the configured checks on Python 3.11 and 3.12, builds the frontend and Docker image, and verifies that the optional MCP server imports. Check the live workflow for the exact run result rather than relying on a README statement.
 
-## Security and documentation
+## Current limitations
 
-Repository content is untrusted input. RepoPilot skips common secret paths but cannot detect every credential. It does not execute repository commands or apply patches. The API is for loopback use; bearer authentication does not replace TLS, rate limiting, identity, roles, or a security review for hosted deployment.
+RepoPilot is intentionally scoped as an MVP. The following are **not implemented**:
 
-- [`SECURITY.md`](SECURITY.md) — security policy.
-- [`docs/threat-model.md`](docs/threat-model.md) — assets, trust boundaries, and residual risk.
-- [`docs/architecture.md`](docs/architecture.md) — components and limits.
-- [`docs/api.md`](docs/api.md) — API routes and authentication.
-- [`docs/mcp-setup.md`](docs/mcp-setup.md) — optional MCP server.
-- [`docs/llm-providers.md`](docs/llm-providers.md) — optional grounded answer provider.
-- [`docs/evaluation.md`](docs/evaluation.md) — evaluation scope.
-- [`docs/quality-tools.md`](docs/quality-tools.md) — quality tooling.
-- [`docs/troubleshooting.md`](docs/troubleshooting.md) — runtime troubleshooting.
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution workflow.
+- Semantic embeddings or reranking.
+- Complete compiler-level call graphs or language-server-grade parsing.
+- Background jobs and distributed indexing.
+- Cloud repository import or patch application.
+- Repository command execution.
+- Multi-user tenancy, production identity/authorization, and role-based access.
+- Built-in rate limiting or a hosted production security posture.
 
-Never commit credentials, private repository content, production data, `.env` files, or local `.repopilot/` databases.
+Repository content must be treated as untrusted input. Secret-path exclusions reduce exposure but cannot detect every credential. The API is intended for loopback use; bearer authentication does not replace TLS, rate limiting, identity, roles, or an environment-specific security review for hosted use.
+
+## Documentation
+
+| Document | Purpose |
+| --- | --- |
+| [Architecture](docs/architecture.md) | Components, data flow, and design boundaries |
+| [API reference](docs/api.md) | Routes, request/response schemas, authentication |
+| [Threat model](docs/threat-model.md) | Assets, trust boundaries, threats, and residual risk |
+| [Security policy](SECURITY.md) | Vulnerability reporting and security expectations |
+| [Evaluation methodology](docs/evaluation.md) | Synthetic benchmark scope, metrics, and next steps |
+| [MCP setup](docs/mcp-setup.md) | Optional MCP server configuration |
+| [LLM providers](docs/llm-providers.md) | Optional grounded-answer provider configuration |
+| [Quality tooling](docs/quality-tools.md) | Development quality and CI tools |
+| [Troubleshooting](docs/troubleshooting.md) | Common local runtime issues |
+| [Contributing](CONTRIBUTING.md) | Contribution workflow |
 
 ## License
 
-RepoPilot is released under the MIT License. See [`LICENSE`](LICENSE).
+MIT — see [LICENSE](LICENSE).
