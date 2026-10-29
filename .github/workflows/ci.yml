@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      OPENAI_EVAL_ENABLED: ${{ secrets.OPENAI_API_KEY != '' }}
+      OPENAI_EVAL_ENABLED: ${{ secrets.GEMINI_API_KEY != '' || secrets.OPENAI_API_KEY != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -70,9 +70,9 @@ jobs:
         if: ${{ env.OPENAI_EVAL_ENABLED == 'true' && matrix.python-version == '3.11' && github.event_name == 'workflow_dispatch' }}
         continue-on-error: true
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL || 'https://api.openai.com/v1' }}
-          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4.1-mini' }}
+          OPENAI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL || (secrets.GEMINI_API_KEY != '' && 'https://generativelanguage.googleapis.com/v1beta/openai/' || 'https://api.openai.com/v1') }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || (secrets.GEMINI_API_KEY != '' && 'gemini-3.8-flash' || 'gpt-4.1-mini') }}
         run: PYTHONPATH=src python evals/run_provider_eval.py --root . --output provider-evaluation.json
       - name: Publish live provider evaluation report
         if: ${{ always() && env.OPENAI_EVAL_ENABLED == 'true' && matrix.python-version == '3.11' && github.event_name == 'workflow_dispatch' }}
