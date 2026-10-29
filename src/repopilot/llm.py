@@ -104,7 +104,7 @@ def generate_grounded_answer(question: str, evidence: list[dict[str, Any]]) -> s
     if answer.count("[[") != len(citations) or answer.count("]]") != len(citations):
         return None
     # Require a citation on every sentence/line, not merely somewhere in the answer.
-    claim_units = [unit.strip() for unit in re.split(r"[\\r\\n]+|(?<=[.!?])\\s+", answer) if unit.strip()]
+    claim_units = [unit.strip() for unit in re.split(r"[\r\n]+|(?<=[.!?])\s+, answer) if unit.strip()]
     if any(not _CITATION.search(unit) for unit in claim_units):
         return None
     return answer
