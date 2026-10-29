@@ -224,7 +224,7 @@
     {
       "id": "multirepo-positive-002",
       "repository": "datapulse",
-      "query": "db execute select readiness",
+      "query": "readiness select(1) SQLAlchemyError",
       "expected_path": "backend/app/main.py",
       "expected_start_line": 67,
       "expected_end_line": 67,
@@ -354,7 +354,7 @@
     {
       "id": "multirepo-positive-015",
       "repository": "matching-engine",
-      "query": "cancelOrder orders erase",
+      "query": "cancelOrder pool_.release",
       "expected_path": "src/OrderBook.cpp",
       "expected_start_line": 86,
       "expected_end_line": 86,
