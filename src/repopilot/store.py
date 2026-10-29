@@ -110,8 +110,12 @@ class Store:
             repo_id = existing["id"] if existing else str(uuid.uuid4())
             parser_version = data.get("parser_version", PARSER_VERSION)
             parser_changed = bool(existing and existing["parser_version"] != parser_version)
-            derived_rebuild = parser_changed
-            indexed_status = "partial" if data.get("errors") else "indexed"
+            scan_partial = bool(data.get("errors"))
+            derived_rebuild = parser_changed and not scan_partial
+            indexed_status = "partial" if scan_partial else "indexed"
+            persisted_parser_version = (
+                existing["parser_version"] if parser_changed and scan_partial else parser_version
+            )
 
             db.execute(
                 """
@@ -125,7 +129,7 @@ class Store:
                 """,
                 (
                     repo_id, data["name"], data["root"], data["branch"], data["commit"], indexed_status, now(),
-                    len(data["files"]), 0, json.dumps(data["errors"]), parser_version,
+                    len(data["files"]), 0, json.dumps(data["errors"]), persisted_parser_version,
                 ),
             )
             repo_id = db.execute(
@@ -137,14 +141,16 @@ class Store:
                 "SELECT path, sha256 FROM files WHERE repository_id=?", (repo_id,)
             ).fetchall()
             current = {row["path"]: row["sha256"] for row in current_rows}
-            removed = set(current) - set(incoming)
+            # A partial scan cannot prove that absent paths were deleted. Preserve those
+            # rows until a complete scan confirms removal.
+            removed = set() if scan_partial else set(current) - set(incoming)
             changed = {
                 path for path, item in incoming.items()
                 if current.get(path) != item["sha256"]
             }
             # A parser change invalidates derived symbol and relationship rows even
             # when source hashes are unchanged. Rebuild these tables transactionally.
-            derived_rebuild = parser_changed or bool(data.get("force_derived_rebuild", False))
+            derived_rebuild = derived_rebuild or (bool(data.get("force_derived_rebuild", False)) and not scan_partial)
             if derived_rebuild:
                 db.execute("DELETE FROM symbols WHERE repository_id=?", (repo_id,))
                 db.execute("DELETE FROM relationships WHERE repository_id=?", (repo_id,))
@@ -207,7 +213,7 @@ class Store:
             db.execute(
                 "INSERT INTO audit_events VALUES (?,?,?,?,?,?,?)",
                 (
-                    str(uuid.uuid4()), repo_id, "index_repository", data["root"], "success",
+                    str(uuid.uuid4()), repo_id, "index_repository", data["root"], "partial" if scan_partial else "success",
                     timestamp,
                     json.dumps({
                         "files": len(incoming),
@@ -218,15 +224,19 @@ class Store:
                         "unchanged": len(incoming) - len(changed),
                         "symbols_parsed": len(data["symbols"]),
                         "parser_version_changed": parser_changed,
+                        "scan_partial": scan_partial,
                     }),
                 ),
             )
+            counts = db.execute(
+                "SELECT COUNT(*) AS file_count FROM files WHERE repository_id=?", (repo_id,)
+            ).fetchone()
             symbol_count = db.execute(
                 "SELECT COUNT(*) AS count FROM symbols WHERE repository_id=?", (repo_id,)
             ).fetchone()["count"]
             db.execute(
                 "UPDATE repositories SET file_count=?, symbol_count=? WHERE id=?",
-                (len(incoming), symbol_count, repo_id),
+                (counts["file_count"], symbol_count, repo_id),
             )
             row = dict(db.execute("SELECT * FROM repositories WHERE id=?", (repo_id,)).fetchone())
             row["index_delta"] = delta
