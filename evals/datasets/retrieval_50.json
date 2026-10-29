@@ -1,0 +1,380 @@
+{
+  "title": "RepoPilot synthetic retrieval benchmark",
+  "version": 1,
+  "description": "Fifteen hand-authored synthetic source files across three repositories; 45 targeted retrieval queries and five negative queries. Measures lexical retrieval behavior only, not semantic answer quality or real-world generalization.",
+  "repositories": {
+    "backend": {
+      "src/auth.py": "Bearer credential rotation token validation rejects expired credentials and records authentication failures.",
+      "src/database.py": "SQLite transaction wal checkpoint rollback savepoint handles database consistency and durability.",
+      "src/indexer.py": "Contenthash incremental parserversion symbols qualified definitions skip unchanged parsing.",
+      "src/search.py": "FTS5 bm25 ranking snippet query tokenizer fulltext retrieval result ordering.",
+      "src/llm.py": "OpenAI grounding citation provider response validates cited paths and abstains on unsupported answers."
+    },
+    "web": {
+      "src/dashboard.tsx": "Repository selector reindex delta unchanged added updated removed file counts.",
+      "src/client.ts": "Fetch timeout retry response header request transport and API error handling.",
+      "src/styles.css": "Responsive dark theme palette spacing typography accessible mobile layout.",
+      "package.json": "Vite TypeScript React dependency production build tooling frontend package.",
+      "src/evidence.tsx": "Line citation sha256 indexed commit snippet source provenance evidence viewer."
+    },
+    "infra": {
+      "Dockerfile": "Container image python runtime nonroot user health endpoint application startup.",
+      "compose.yaml": "Service volume network healthcheck environment dependency orchestration.",
+      "ci.yml": "Pytest ruff coverage compile evaluation artifact continuous integration pipeline.",
+      "codeql.yml": "Codeql static analysis security query workflow SARIF scanning configuration.",
+      "SECURITY.md": "Path traversal symlink redaction secret exclusion local trust boundary threat model."
+    }
+  },
+  "cases": [
+    {
+      "id": "retrieval-001",
+      "repo": "backend",
+      "query": "bearer credential",
+      "expected_path": "src/auth.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-002",
+      "repo": "backend",
+      "query": "rotation token",
+      "expected_path": "src/auth.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-003",
+      "repo": "backend",
+      "query": "credential rotation",
+      "expected_path": "src/auth.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-004",
+      "repo": "backend",
+      "query": "sqlite checkpoint",
+      "expected_path": "src/database.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-005",
+      "repo": "backend",
+      "query": "transaction rollback",
+      "expected_path": "src/database.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-006",
+      "repo": "backend",
+      "query": "wal checkpoint",
+      "expected_path": "src/database.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-007",
+      "repo": "backend",
+      "query": "contenthash parserversion",
+      "expected_path": "src/indexer.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-008",
+      "repo": "backend",
+      "query": "incremental symbols",
+      "expected_path": "src/indexer.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-009",
+      "repo": "backend",
+      "query": "parserversion qualified",
+      "expected_path": "src/indexer.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-010",
+      "repo": "backend",
+      "query": "fts5 bm25",
+      "expected_path": "src/search.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-011",
+      "repo": "backend",
+      "query": "ranking snippet",
+      "expected_path": "src/search.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-012",
+      "repo": "backend",
+      "query": "tokenizer retrieval",
+      "expected_path": "src/search.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-013",
+      "repo": "backend",
+      "query": "openai grounding",
+      "expected_path": "src/llm.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-014",
+      "repo": "backend",
+      "query": "citation provider",
+      "expected_path": "src/llm.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-015",
+      "repo": "backend",
+      "query": "validates abstains",
+      "expected_path": "src/llm.py",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-016",
+      "repo": "web",
+      "query": "selector reindex",
+      "expected_path": "src/dashboard.tsx",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-017",
+      "repo": "web",
+      "query": "delta unchanged",
+      "expected_path": "src/dashboard.tsx",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-018",
+      "repo": "web",
+      "query": "added removed",
+      "expected_path": "src/dashboard.tsx",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-019",
+      "repo": "web",
+      "query": "fetch timeout",
+      "expected_path": "src/client.ts",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-020",
+      "repo": "web",
+      "query": "retry response",
+      "expected_path": "src/client.ts",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-021",
+      "repo": "web",
+      "query": "transport handling",
+      "expected_path": "src/client.ts",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-022",
+      "repo": "web",
+      "query": "responsive palette",
+      "expected_path": "src/styles.css",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-023",
+      "repo": "web",
+      "query": "dark spacing",
+      "expected_path": "src/styles.css",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-024",
+      "repo": "web",
+      "query": "typography mobile",
+      "expected_path": "src/styles.css",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-025",
+      "repo": "web",
+      "query": "vite typescript",
+      "expected_path": "package.json",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-026",
+      "repo": "web",
+      "query": "react dependency",
+      "expected_path": "package.json",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-027",
+      "repo": "web",
+      "query": "frontend package",
+      "expected_path": "package.json",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-028",
+      "repo": "web",
+      "query": "line citation",
+      "expected_path": "src/evidence.tsx",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-029",
+      "repo": "web",
+      "query": "sha256 indexed",
+      "expected_path": "src/evidence.tsx",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-030",
+      "repo": "web",
+      "query": "provenance viewer",
+      "expected_path": "src/evidence.tsx",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-031",
+      "repo": "infra",
+      "query": "container runtime",
+      "expected_path": "Dockerfile",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-032",
+      "repo": "infra",
+      "query": "image python",
+      "expected_path": "Dockerfile",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-033",
+      "repo": "infra",
+      "query": "nonroot health",
+      "expected_path": "Dockerfile",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-034",
+      "repo": "infra",
+      "query": "service volume",
+      "expected_path": "compose.yaml",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-035",
+      "repo": "infra",
+      "query": "network healthcheck",
+      "expected_path": "compose.yaml",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-036",
+      "repo": "infra",
+      "query": "environment orchestration",
+      "expected_path": "compose.yaml",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-037",
+      "repo": "infra",
+      "query": "pytest ruff",
+      "expected_path": "ci.yml",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-038",
+      "repo": "infra",
+      "query": "coverage compile",
+      "expected_path": "ci.yml",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-039",
+      "repo": "infra",
+      "query": "evaluation artifact",
+      "expected_path": "ci.yml",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-040",
+      "repo": "infra",
+      "query": "codeql static",
+      "expected_path": "codeql.yml",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-041",
+      "repo": "infra",
+      "query": "analysis security",
+      "expected_path": "codeql.yml",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-042",
+      "repo": "infra",
+      "query": "SARIF scanning",
+      "expected_path": "codeql.yml",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-043",
+      "repo": "infra",
+      "query": "path traversal",
+      "expected_path": "SECURITY.md",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-044",
+      "repo": "infra",
+      "query": "symlink redaction",
+      "expected_path": "SECURITY.md",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-045",
+      "repo": "infra",
+      "query": "secret exclusion",
+      "expected_path": "SECURITY.md",
+      "category": "path_retrieval"
+    },
+    {
+      "id": "retrieval-046",
+      "repo": "backend",
+      "query": "quasar unobtanium",
+      "expected_path": null,
+      "category": "abstention"
+    },
+    {
+      "id": "retrieval-047",
+      "repo": "web",
+      "query": "phantom nebula",
+      "expected_path": null,
+      "category": "abstention"
+    },
+    {
+      "id": "retrieval-048",
+      "repo": "infra",
+      "query": "zircon impossibletoken",
+      "expected_path": null,
+      "category": "abstention"
+    },
+    {
+      "id": "retrieval-049",
+      "repo": "backend",
+      "query": "unlisted moonbase",
+      "expected_path": null,
+      "category": "abstention"
+    },
+    {
+      "id": "retrieval-050",
+      "repo": "web",
+      "query": "absent starship",
+      "expected_path": null,
+      "category": "abstention"
+    }
+  ]
+}
