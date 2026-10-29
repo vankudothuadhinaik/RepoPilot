@@ -37,3 +37,13 @@ def test_missing_repository_is_404(client):
 def test_invalid_repository_path_is_400(client, tmp_path):
     response = client.post("/api/repos", json={"path": str(tmp_path)})
     assert response.status_code == 400
+
+
+
+def test_api_token_guard_protects_api_but_not_health(client, monkeypatch):
+    monkeypatch.setenv("REP_PILOT_API_TOKEN", "test-secret-token")
+    assert client.get("/health/live").status_code == 200
+    assert client.get("/api/repos").status_code == 401
+    assert client.get("/api/repos", headers={"Authorization": "Bearer wrong"}).status_code == 401
+    response = client.get("/api/repos", headers={"Authorization": "Bearer test-secret-token"})
+    assert response.status_code == 200
