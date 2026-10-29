@@ -1,4 +1,5 @@
 import argparse
+import json
 
 import pytest
 
@@ -50,3 +51,35 @@ def test_parse_source_revision_requires_name_and_sha():
     assert benchmark_matrix.parse_source_revision("repo=abc123") == ("repo", "abc123")
     with pytest.raises(argparse.ArgumentTypeError):
         benchmark_matrix.parse_source_revision("missing-sha")
+
+
+def test_run_matrix_materializes_pinned_snapshot_bundle(monkeypatch, tmp_path):
+    root = tmp_path / "datapulse"
+    root.mkdir()
+    (root / "snapshot.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "commit": "upstream-sha",
+                "files": {"README.md": "# Snapshot\n", "src/app.py": "def main():\n    return 1\n"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed = {}
+
+    def fake_run(materialized):
+        observed["readme"] = (materialized / "README.md").read_text(encoding="utf-8")
+        observed["source"] = (materialized / "src" / "app.py").read_text(encoding="utf-8")
+        return {"repository": materialized.name, "root": str(materialized), "commit": None}
+
+    monkeypatch.setattr(benchmark_matrix, "run", fake_run)
+    report = benchmark_matrix.run_matrix(
+        [root], redact_paths=True, source_revisions={"datapulse": "upstream-sha"}
+    )
+
+    assert observed["readme"] == "# Snapshot\n"
+    assert "def main" in observed["source"]
+    assert report["reports"][0]["repository"] == "datapulse"
+    assert report["reports"][0]["root"] == "<redacted>"
+    assert report["reports"][0]["source_commit"] == "upstream-sha"
