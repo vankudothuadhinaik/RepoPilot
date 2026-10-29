@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import os
+import platform
 import re
 import shutil
 import tempfile
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -67,6 +70,39 @@ def citation_is_valid(item: dict[str, Any], root: Path) -> bool:
         for number, content in cited.items()
     )
 
+def _normalize_text(value: str) -> str:
+    return re.sub(r"\\s+", " ", value).strip()
+
+
+def _quoted_answer_is_supported(answer: str, evidence: list[dict[str, Any]]) -> bool:
+    quotes = re.findall(r'"([^"]+)"', answer)
+    if not quotes:
+        return False
+    source_lines = []
+    for item in evidence:
+        for line in str(item.get("snippet", "")).splitlines():
+            _, separator, content = line.partition(": ")
+            if separator:
+                source_lines.append(content)
+    source_text = _normalize_text("\\n".join(source_lines))
+    return all(_normalize_text(quote) in source_text for quote in quotes)
+
+
+def _expected_fact_anchor_is_valid(question: dict[str, Any], root: Path) -> bool:
+    path = question.get("expected_path")
+    anchor = question.get("expected_fact_anchor")
+    start, end = question.get("expected_start_line"), question.get("expected_end_line")
+    if not path or not anchor or not isinstance(start, int) or not isinstance(end, int):
+        return False
+    source = root / path
+    if not source.is_file():
+        return False
+    lines = source.read_text(encoding="utf-8").splitlines()
+    return start >= 1 and end <= len(lines) and any(
+        anchor in lines[number - 1] for number in range(start, end + 1)
+    )
+
+
 def score_case(question: dict[str, Any], response: dict[str, Any], root: Path) -> dict[str, Any]:
     """Score structural evidence properties, not semantic truth of generated prose."""
     expected_path = question.get("expected_path")
@@ -77,10 +113,26 @@ def score_case(question: dict[str, Any], response: dict[str, Any], root: Path) -
         if isinstance(item, dict) and citation_is_valid(item, root)
     ]
     if expected_path:
+        start, end = question.get("expected_start_line"), question.get("expected_end_line")
+        range_covered = any(
+            item.get("path") == expected_path
+            and isinstance(item.get("start_line"), int)
+            and isinstance(item.get("end_line"), int)
+            and item["start_line"] <= end
+            and item["end_line"] >= start
+            and item in valid_evidence
+            for item in evidence
+        )
         return {
             "id": question["id"],
+            "expected_fact": question.get("expected_fact"),
+            "expected_fact_anchor": question.get("expected_fact_anchor"),
             "expected_path_found": any(item.get("path") == expected_path for item in evidence),
             "source_lines_valid": any(item.get("path") == expected_path for item in valid_evidence),
+            "expected_range_covered": range_covered,
+            "expected_fact_anchor_valid": _expected_fact_anchor_is_valid(question, root),
+            "symbol_range_valid": question.get("symbol_range_valid"),
+            "answer_quote_supported": _quoted_answer_is_supported(answer, valid_evidence),
             "answer_has_citations": bool(cited_paths),
             "answer_citations_supported": bool(cited_paths) and set(cited_paths).issubset(
                 {item.get("path") for item in evidence}),
@@ -90,6 +142,7 @@ def score_case(question: dict[str, Any], response: dict[str, Any], root: Path) -
         }
     return {
         "id": question["id"],
+        "expected_fact": question.get("expected_fact"),
         "unsupported_question_abstained": (
             bool(response.get("abstained")) and not evidence and not citation_paths(answer)
         ),
@@ -120,7 +173,9 @@ def evaluate(root: Path) -> dict[str, Any]:
         return {"status": "skipped", "reason": "OPENAI_API_KEY is not configured; no provider score was produced."}
     root = root.resolve()
     dataset_path = Path(__file__).parent / "datasets" / "ground_truth.json"
-    questions = json.loads(dataset_path.read_text(encoding="utf-8"))["questions"]
+    dataset_bytes = dataset_path.read_bytes()
+    dataset = json.loads(dataset_bytes)
+    questions = dataset["questions"]
     previous_token = os.environ.get("REP_PILOT_API_TOKEN")
     previous_data_dir = os.environ.get("REP_PILOT_DATA_DIR")
     with tempfile.TemporaryDirectory(prefix="repopilot-provider-eval-") as data_dir:
@@ -179,7 +234,23 @@ def evaluate(root: Path) -> dict[str, Any]:
                     scored["evaluation_error"] = "malformed_api_response"
                     results.append(scored)
                     continue
-                scored = score_case(question, payload, corpus_root)
+                score_question = question
+                if question.get("expected_symbol"):
+                    symbol_response = client.get(
+                        f"/api/repos/{repo_id}/symbols",
+                        params={"q": question["expected_symbol"]},
+                        headers=headers,
+                    )
+                    symbol_response.raise_for_status()
+                    symbol_valid = any(
+                        item["path"] == question["expected_path"]
+                        and item["name"] == question["expected_symbol"]
+                        and item["start_line"] == question["expected_start_line"]
+                        and item["end_line"] == question["expected_end_line"]
+                        for item in symbol_response.json()
+                    )
+                    score_question = {**question, "symbol_range_valid": symbol_valid}
+                scored = score_case(score_question, payload, corpus_root)
                 if diagnostic.codes:
                     scored["provider_error"] = diagnostic.codes[-1]
                 results.append(scored)
@@ -225,6 +296,24 @@ def evaluate(root: Path) -> dict[str, Any]:
                 round(sum(x["source_lines_valid"] for x in positives) / len(positives), 4)
                 if positives else None
             ),
+            "expected_range_coverage_rate": (
+                round(sum(x["expected_range_covered"] for x in positives) / len(positives), 4)
+                if positives else None
+            ),
+            "expected_fact_anchor_validity": (
+                round(sum(x["expected_fact_anchor_valid"] for x in positives) / len(positives), 4)
+                if positives else None
+            ),
+            "symbol_range_accuracy": (
+                round(
+                    sum(bool(x["symbol_range_valid"]) for x in positives if x["symbol_range_valid"] is not None)
+                    / sum(x["symbol_range_valid"] is not None for x in positives), 4
+                ) if any(x["symbol_range_valid"] is not None for x in positives) else None
+            ),
+            "answer_quote_support_rate": (
+                round(sum(x["answer_quote_supported"] for x in positives) / len(positives), 4)
+                if positives else None
+            ),
             "answer_citation_rate": (
                 round(sum(x["answer_has_citations"] for x in positives) / len(positives), 4)
                 if positives else None
@@ -249,7 +338,12 @@ def evaluate(root: Path) -> dict[str, Any]:
         )
         passed = passed and all(x.get("provider_answer_generated", False) for x in positives)
         passed = passed and all(
-            x.get("source_lines_valid", True) and x.get("answer_citations_supported", True)
+            x.get("source_lines_valid", False)
+            and x.get("expected_range_covered", False)
+            and x.get("expected_fact_anchor_valid", False)
+            and x.get("answer_quote_supported", False)
+            and x.get("answer_citations_supported", False)
+            and x.get("symbol_range_valid", True) is not False
             for x in positives
         )
         base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").strip()
@@ -264,7 +358,13 @@ def evaluate(root: Path) -> dict[str, Any]:
                 "model": os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip() or None,
                 "provider_version": None,
             },
-            "dataset": "evals/datasets/ground_truth.json", "question_count": len(questions),
+            "dataset": "evals/datasets/ground_truth.json",
+            "dataset_version": dataset.get("version"),
+            "dataset_sha256": hashlib.sha256(dataset_bytes).hexdigest(),
+            "authoring": dataset.get("authoring"),
+            "repositories": dataset.get("repositories"),
+            "runtime": {"python": sys.version.split()[0], "platform": platform.platform()},
+            "question_count": len(questions),
             "positive_count": len(positives), "negative_count": len(negatives),
             "metrics": metrics, "results": results, "passed": passed,
             "limitations": [
