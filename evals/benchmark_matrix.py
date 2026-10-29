@@ -5,7 +5,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from benchmark_repository import run
+try:
+    from .benchmark_repository import run
+except ImportError:  # Support direct script execution from the evals directory.
+    from benchmark_repository import run
 
 
 def run_matrix(roots: list[Path], *, redact_paths: bool = False) -> dict[str, Any]:
