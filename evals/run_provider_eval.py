@@ -1,6 +1,11 @@
 """Opt-in live-provider evaluation; emits redacted per-case metrics only."""
 from __future__ import annotations
-import argparse, json, os, re, tempfile, time
+import argparse
+import json
+import os
+import re
+import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -27,15 +32,20 @@ def citation_is_valid(item: dict[str, Any], root: Path) -> bool:
         number, separator, content = line.partition(": ")
         if separator and number.isdigit():
             cited[int(number)] = content
-    return bool(cited) and all(1 <= number <= len(lines) and lines[number - 1] == content
-                               for number, content in cited.items())
+    return bool(cited) and all(
+        1 <= number <= len(lines) and lines[number - 1] == content
+        for number, content in cited.items()
+    )
 
 def score_case(question: dict[str, Any], response: dict[str, Any], root: Path) -> dict[str, Any]:
     """Score structural evidence properties, not semantic truth of generated prose."""
     expected_path = question.get("expected_path")
     evidence, answer = response.get("evidence") or [], response.get("answer") or ""
     cited_paths = citation_paths(answer)
-    valid_evidence = [item for item in evidence if isinstance(item, dict) and citation_is_valid(item, root)]
+    valid_evidence = [
+        item for item in evidence
+        if isinstance(item, dict) and citation_is_valid(item, root)
+    ]
     if expected_path:
         return {
             "id": question["id"],
@@ -48,7 +58,9 @@ def score_case(question: dict[str, Any], response: dict[str, Any], root: Path) -
         }
     return {
         "id": question["id"],
-        "unsupported_question_abstained": bool(response.get("abstained")) and not evidence and not citation_paths(answer),
+        "unsupported_question_abstained": (
+            bool(response.get("abstained")) and not evidence and not citation_paths(answer)
+        ),
         "evidence_count": len(evidence),
         "answer_has_citations": bool(cited_paths),
     }
@@ -64,6 +76,7 @@ def evaluate(root: Path) -> dict[str, Any]:
         os.environ["REP_PILOT_API_TOKEN"] = "provider-evaluation-local-token"
         os.environ["REP_PILOT_DATA_DIR"] = data_dir
         from fastapi.testclient import TestClient
+
         from repopilot.api import app
         client = TestClient(app)
         headers = {"Authorization": "Bearer provider-evaluation-local-token"}
@@ -72,25 +85,51 @@ def evaluate(root: Path) -> dict[str, Any]:
         repo_id = registration.json()["id"]
         results, durations = [], []
         for question in questions:
-            query = question.get("query") or "".join(chr(value) for value in question.get("query_codepoints", []))
+            query = question.get("query") or "".join(
+                chr(value) for value in question.get("query_codepoints", [])
+            )
             started = time.perf_counter()
-            response = client.post(f"/api/repos/{repo_id}/ask",
-                                   json={"question": query, "limit": 5}, headers=headers)
+            response = client.post(
+                f"/api/repos/{repo_id}/ask",
+                json={"question": query, "limit": 5},
+                headers=headers,
+            )
             durations.append((time.perf_counter() - started) * 1000)
             response.raise_for_status()
             results.append(score_case(question, response.json(), root))
         positives = [item for item in results if "expected_path_found" in item]
         negatives = [item for item in results if "unsupported_question_abstained" in item]
         metrics = {
-            "expected_path_rate": round(sum(x["expected_path_found"] for x in positives) / len(positives), 4) if positives else None,
-            "valid_source_evidence_rate": round(sum(x["source_lines_valid"] for x in positives) / len(positives), 4) if positives else None,
-            "answer_citation_rate": round(sum(x["answer_has_citations"] for x in positives) / len(positives), 4) if positives else None,
-            "supported_citation_rate": round(sum(x["answer_citations_supported"] for x in positives) / len(positives), 4) if positives else None,
-            "unsupported_abstention_rate": round(sum(x["unsupported_question_abstained"] for x in negatives) / len(negatives), 4) if negatives else None,
+            "expected_path_rate": (
+                round(sum(x["expected_path_found"] for x in positives) / len(positives), 4)
+                if positives else None
+            ),
+            "valid_source_evidence_rate": (
+                round(sum(x["source_lines_valid"] for x in positives) / len(positives), 4)
+                if positives else None
+            ),
+            "answer_citation_rate": (
+                round(sum(x["answer_has_citations"] for x in positives) / len(positives), 4)
+                if positives else None
+            ),
+            "supported_citation_rate": (
+                round(sum(x["answer_citations_supported"] for x in positives) / len(positives), 4)
+                if positives else None
+            ),
+            "unsupported_abstention_rate": (
+                round(sum(x["unsupported_question_abstained"] for x in negatives) / len(negatives), 4)
+                if negatives else None
+            ),
             "latency_ms_median": round(sorted(durations)[len(durations) // 2], 2) if durations else None,
         }
-        passed = all(x.get("expected_path_found", x.get("unsupported_question_abstained", False)) for x in results)
-        passed = passed and all(x.get("source_lines_valid", True) and x.get("answer_citations_supported", True) for x in positives)
+        passed = all(
+            x.get("expected_path_found", x.get("unsupported_question_abstained", False))
+            for x in results
+        )
+        passed = passed and all(
+            x.get("source_lines_valid", True) and x.get("answer_citations_supported", True)
+            for x in positives
+        )
         return {
             "status": "completed", "mode": "live-provider",
             "dataset": "evals/datasets/ground_truth.json", "question_count": len(questions),
