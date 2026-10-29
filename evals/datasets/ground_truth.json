@@ -7,8 +7,8 @@
       "query": "bearer token middleware",
       "expected_path": "src/repopilot/api.py",
       "expected_symbol": "require_api_token",
-      "expected_start_line": 25,
-      "expected_end_line": 37
+      "expected_start_line": 26,
+      "expected_end_line": 38
     },
     {
       "id": "ground-truth-002",
@@ -16,15 +16,15 @@
       "expected_path": "src/repopilot/indexer.py",
       "expected_symbol": "index_repository",
       "expected_start_line": 187,
-      "expected_end_line": 240
+      "expected_end_line": 257
     },
     {
       "id": "ground-truth-003",
       "query": "path_prefix clauses",
       "expected_path": "src/repopilot/store.py",
       "expected_symbol": "search",
-      "expected_start_line": 256,
-      "expected_end_line": 288
+      "expected_start_line": 281,
+      "expected_end_line": 313
     },
     {
       "id": "ground-truth-004",

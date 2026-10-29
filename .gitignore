@@ -19,4 +19,6 @@ node_modules/
 apps/web/dist/
 apps/web/tsconfig.tsbuildinfo
 retrieval_benchmark_results.json
+repository_benchmark_results.json
+validation_benchmark_matrix.json
 .DS_Store
