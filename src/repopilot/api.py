@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from repopilot.indexer import index_repository
+from repopilot.llm import generate_grounded_answer
 from repopilot.store import Store
 
 app = FastAPI(
@@ -143,10 +144,21 @@ def ask_repository(repo_id: str, payload: AskRequest) -> dict[str, Any]:
             "snippet": snippet, "sha256": file_data["sha256"],
             "indexed_commit": require_repo(repo_id).get("indexed_commit"),
         })
-    # No model is called here. The baseline deliberately reports retrieved evidence rather than inventing an LLM answer.
+    generated_answer = generate_grounded_answer(payload.question, evidence)
+    if generated_answer:
+        answer = generated_answer
+        mode = "llm"
+    else:
+        answer = (
+            "Retrieved repository evidence is shown below. Configure OPENAI_API_KEY "
+            "and an OpenAI-compatible model endpoint for cited natural-language answers."
+        )
+        mode = "retrieval_only"
     return {
-        "answer": "Retrieved repository evidence is shown below. This local baseline does not generate a semantic explanation; inspect the cited snippets before drawing conclusions.",
-        "evidence": evidence, "abstained": len(evidence) == 0,
+        "answer": answer,
+        "evidence": evidence,
+        "abstained": len(evidence) == 0,
+        "mode": mode,
     }
 
 
