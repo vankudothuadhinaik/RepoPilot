@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 from typing import Any
 
 
@@ -56,7 +57,11 @@ def evaluate(root: Path) -> dict[str, Any]:
             query = question.get("query") or "".join(chr(value) for value in question["query_codepoints"])
             payload = {"question": query, "limit": 5}
             search = client.post(f"/api/repos/{repo_id}/search", json=payload, headers=headers)
-            ask = client.post(f"/api/repos/{repo_id}/ask", json=payload, headers=headers)
+            # This evaluator measures deterministic retrieval/evidence behavior.
+            # Keep provider calls out of CI; provider-backed answer quality is covered
+            # by the separate opt-in live-provider evaluation.
+            with patch("repopilot.api.generate_grounded_answer", return_value=None):
+                ask = client.post(f"/api/repos/{repo_id}/ask", json=payload, headers=headers)
             search.raise_for_status()
             ask.raise_for_status()
             results = search.json()["results"]
