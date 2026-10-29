@@ -134,11 +134,22 @@ class Store:
                 "SELECT path, sha256 FROM files WHERE repository_id=?", (repo_id,)
             ).fetchall()
             current = {row["path"]: row["sha256"] for row in current_rows}
+            parser_changed = (
+                db.execute("SELECT parser_version FROM repositories WHERE id=?", (repo_id,)).fetchone()["parser_version"]
+                != data.get("parser_version", PARSER_VERSION)
+            )
             removed = set(current) - set(incoming)
             changed = {
                 path for path, item in incoming.items()
                 if current.get(path) != item["sha256"]
             }
+            # A parser change invalidates derived symbol and relationship rows even
+            # when source hashes are unchanged. Rebuild these tables transactionally.
+            derived_rebuild = parser_changed or bool(data.get("force_derived_rebuild", False))
+            if derived_rebuild:
+                db.execute("DELETE FROM symbols WHERE repository_id=?", (repo_id,))
+                db.execute("DELETE FROM relationships WHERE repository_id=?", (repo_id,))
+                changed = set(incoming)
 
             # Delete removed files and all derived rows tied to those paths.
             for path in sorted(removed):
@@ -206,6 +217,7 @@ class Store:
                         "removed": len(removed),
                         "unchanged": len(incoming) - len(changed),
                         "symbols_parsed": len(data["symbols"]),
+                        "parser_version_changed": parser_changed,
                     }),
                 ),
             )
