@@ -110,6 +110,7 @@ class Store:
             repo_id = existing["id"] if existing else str(uuid.uuid4())
             parser_version = data.get("parser_version", PARSER_VERSION)
             parser_changed = bool(existing and existing["parser_version"] != parser_version)
+            derived_rebuild = parser_changed
             indexed_status = "partial" if data.get("errors") else "indexed"
 
             db.execute(
@@ -145,7 +146,7 @@ class Store:
                 path for path, item in incoming.items()
                 if current.get(path) != item["sha256"]
             }
-            if parser_changed:
+            if derived_rebuild:
                 # Source hashes can stay constant while parser output changes.
                 # Rebuild all derived rows transactionally; FTS/file bodies can be
                 # retained for unchanged files and are reinserted by the same loop.
@@ -167,7 +168,8 @@ class Store:
                 db.execute("DELETE FROM symbols WHERE repository_id=? AND path=?", (repo_id, path))
                 db.execute("DELETE FROM relationships WHERE repository_id=? AND source=?", (repo_id, path))
 
-            # Rewrite only changed/new file bodies and their derived indexes.
+            # Rebuild mode reparses every unchanged file; the indexer includes all
+            # derived records in that mode, so rewrite all changed paths consistently.
             symbols_by_path: dict[str, list[dict[str, Any]]] = {}
             for symbol in data["symbols"]:
                 symbols_by_path.setdefault(symbol["path"], []).append(symbol)
