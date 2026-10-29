@@ -17,4 +17,6 @@ build/
 data/
 node_modules/
 apps/web/dist/
+apps/web/tsconfig.tsbuildinfo
+retrieval_benchmark_results.json
 .DS_Store
