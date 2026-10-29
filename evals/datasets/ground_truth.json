@@ -24,7 +24,7 @@
       "expected_path": "src/repopilot/store.py",
       "expected_symbol": "search",
       "expected_start_line": 281,
-      "expected_end_line": 326
+      "expected_end_line": 327
     },
     {
       "id": "ground-truth-004",
