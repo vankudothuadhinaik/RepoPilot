@@ -54,7 +54,31 @@ def test_known_hashes_skip_parsing_unchanged_files(fixture_repo, monkeypatch):
         raise AssertionError("unchanged file should not be parsed")
 
     monkeypatch.setattr(indexer, "parse_python", fail_if_parsed)
-    result = indexer.index_repository(fixture_repo, known_hashes=known_hashes)
+    result = indexer.index_repository(
+        fixture_repo,
+        known_hashes=known_hashes,
+        known_parser_version=indexer.PARSER_VERSION,
+    )
     assert result["files"]
     assert result["symbols"] == []
     assert result["imports"] == []
+
+def test_parser_version_change_forces_symbol_rebuild(fixture_repo, monkeypatch):
+    import repopilot.indexer as indexer
+
+    initial = indexer.index_repository(fixture_repo)
+    known_hashes = {item["path"]: item["sha256"] for item in initial["files"]}
+    original = indexer.parse_python
+    parsed_paths = []
+
+    def record_parse(path, content):
+        parsed_paths.append(path)
+        return original(path, content)
+
+    monkeypatch.setattr(indexer, "parse_python", record_parse)
+    indexer.index_repository(
+        fixture_repo,
+        known_hashes=known_hashes,
+        known_parser_version="older-parser",
+    )
+    assert "app.py" in parsed_paths
