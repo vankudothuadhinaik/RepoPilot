@@ -38,7 +38,7 @@ def _validate_question_repositories(
 def _validate_positive_ranges(questions: list[dict[str, Any]]) -> None:
     invalid = next(
         (
-            question for question in dataset.questions
+            question for question in questions
             if question.get("expected_path") and not _has_expected_range(question)
         ),
         None,
@@ -56,7 +56,9 @@ def _has_expected_range(question: dict[str, Any]) -> bool:
     )
 
 
-def _validate_dataset(dataset: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+def _validate_dataset(
+    dataset: dict[str, Any],
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
     questions = dataset["questions"]
     repositories = {item["id"]: item for item in dataset["repositories"]}
     if not questions or not repositories:
@@ -97,7 +99,7 @@ def _run_offline_evaluation(
                 corpus_roots[question["repository"]],
                 headers,
             )
-            for question in questions
+            for question in dataset.questions
         ]
         return _build_report(dataset.data, dataset.raw_bytes, dataset.questions, details)
 
