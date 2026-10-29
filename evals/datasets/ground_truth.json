@@ -73,7 +73,7 @@
     },
     {
       "id": "ground-truth-010",
-      "query": "fallback path prefix language rows",
+      "query": "fallback path_prefix language rows",
       "expected_path": "src/repopilot/store.py",
       "expected_symbol": "_fallback_search",
       "expected_start_line": 333,
