@@ -139,41 +139,33 @@ def _register_corpora(client: Any, corpus_roots: dict[str, Path], headers: dict[
     return repo_ids
 
 
-def _evaluate_question(
-    client: Any,
-    question: dict[str, Any],
-    repo_id: str,
-    corpus_root: Path,
-    headers: dict[str, str],
-) -> dict[str, Any]:
-    name = question["repository"]
-    category = str(question.get("category", "uncategorized"))
-    payload = {"question": _query(question), "limit": 5}
+def _run_retrieval_query(
+    client: Any, repo_id: str, query: str, headers: dict[str, str]
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    payload = {"question": query, "limit": 5}
     search = client.post(f"/api/repos/{repo_id}/search", json=payload, headers=headers)
     with patch("repopilot.api.generate_grounded_answer", return_value=None):
         ask = client.post(f"/api/repos/{repo_id}/ask", json=payload, headers=headers)
     search.raise_for_status()
     ask.raise_for_status()
-    results = search.json()["results"]
-    answer = ask.json()
-    expected_path = question.get("expected_path")
+    return search.json()["results"], ask.json()
 
-    if not expected_path:
-        evidence = answer.get("evidence") or []
-        abstained = bool(answer.get("abstained")) and not evidence
-        return {
-            "id": question["id"], "repository": name, "category": category,
-            "unsupported_abstained": abstained, "evidence_count": len(evidence),
-            "passed": abstained,
-        }
 
-    rank = next(
-        (index for index, item in enumerate(results, 1) if item["path"] == expected_path),
-        None,
-    )
-    expected_start = question["expected_start_line"]
-    expected_end = question["expected_end_line"]
-    evidence_checks = [
+def _score_unsupported_question(
+    question: dict[str, Any], answer: dict[str, Any]
+) -> dict[str, Any]:
+    evidence = answer.get("evidence") or []
+    abstained = bool(answer.get("abstained")) and not evidence
+    return {
+        "id": question["id"], "repository": question["repository"],
+        "category": str(question.get("category", "uncategorized")),
+        "unsupported_abstained": abstained, "evidence_count": len(evidence),
+        "passed": abstained,
+    }
+
+
+def _evidence_checks(answer: dict[str, Any], corpus_root: Path) -> list[dict[str, Any]]:
+    return [
         {
             "path": item.get("path"),
             "start_line": item.get("start_line"),
@@ -183,6 +175,46 @@ def _evaluate_question(
         for item in (answer.get("evidence") or [])
         if isinstance(item, dict)
     ]
+
+
+def _expected_path_rank(results: list[dict[str, Any]], expected_path: str) -> int | None:
+    return next(
+        (index for index, item in enumerate(results, 1) if item["path"] == expected_path),
+        None,
+    )
+
+
+def _expected_symbol_valid(
+    client: Any, question: dict[str, Any], repo_id: str, headers: dict[str, str]
+) -> bool | None:
+    symbol = question.get("expected_symbol")
+    if not symbol:
+        return None
+    response = client.get(
+        f"/api/repos/{repo_id}/symbols", params={"q": symbol}, headers=headers
+    )
+    response.raise_for_status()
+    return any(
+        item["path"] == question["expected_path"]
+        and item["name"] == symbol
+        and item["start_line"] == question["expected_start_line"]
+        and item["end_line"] == question["expected_end_line"]
+        for item in response.json()
+    )
+
+
+def _score_supported_question(
+    client: Any,
+    question: dict[str, Any],
+    repo_id: str,
+    corpus_root: Path,
+    headers: dict[str, str],
+    results: list[dict[str, Any]],
+    answer: dict[str, Any],
+) -> dict[str, Any]:
+    expected_path = question["expected_path"]
+    expected_start, expected_end = question["expected_start_line"], question["expected_end_line"]
+    checks = _evidence_checks(answer, corpus_root)
     citation_ok = any(
         item["path"] == expected_path
         and isinstance(item["start_line"], int)
@@ -190,33 +222,34 @@ def _evaluate_question(
         and item["start_line"] <= expected_end
         and item["end_line"] >= expected_start
         and item["source_lines_valid"]
-        for item in evidence_checks
+        for item in checks
     )
-    symbol_ok: bool | None = None
-    if question.get("expected_symbol"):
-        symbols = client.get(
-            f"/api/repos/{repo_id}/symbols",
-            params={"q": question["expected_symbol"]},
-            headers=headers,
-        )
-        symbols.raise_for_status()
-        candidates = [
-            item for item in symbols.json()
-            if item["path"] == expected_path and item["name"] == question["expected_symbol"]
-        ]
-        symbol_ok = any(
-            item["start_line"] == expected_start and item["end_line"] == expected_end
-            for item in candidates
-        )
-    path_ok = rank is not None
-    passed = path_ok and citation_ok and symbol_ok is not False
+    rank = _expected_path_rank(results, expected_path)
+    symbol_ok = _expected_symbol_valid(client, question, repo_id, headers)
     return {
-        "id": question["id"], "repository": name, "category": category,
+        "id": question["id"], "repository": question["repository"],
+        "category": str(question.get("category", "uncategorized")),
         "expected_path": expected_path, "expected_range": [expected_start, expected_end],
-        "rank_at_5": rank, "path_found": path_ok, "symbol_range_valid": symbol_ok,
-        "citation_range_valid": citation_ok, "evidence_checks": evidence_checks,
-        "passed": passed,
+        "rank_at_5": rank, "path_found": rank is not None,
+        "symbol_range_valid": symbol_ok, "citation_range_valid": citation_ok,
+        "evidence_checks": checks,
+        "passed": rank is not None and citation_ok and symbol_ok is not False,
     }
+
+
+def _evaluate_question(
+    client: Any,
+    question: dict[str, Any],
+    repo_id: str,
+    corpus_root: Path,
+    headers: dict[str, str],
+) -> dict[str, Any]:
+    results, answer = _run_retrieval_query(client, repo_id, _query(question), headers)
+    if not question.get("expected_path"):
+        return _score_unsupported_question(question, answer)
+    return _score_supported_question(
+        client, question, repo_id, corpus_root, headers, results, answer
+    )
 
 
 def _build_report(
