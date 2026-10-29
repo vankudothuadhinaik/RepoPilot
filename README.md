@@ -13,7 +13,7 @@ RepoPilot aims to help developers understand unfamiliar repositories, find relev
 - Local repository registration and content-hash-based incremental re-indexing, with per-run added/updated/removed/unchanged counts in the API and dashboard.
 - File filtering, common secret-file exclusions, symlink skipping, and file-size limits.
 - Python function/class discovery using the standard-library AST parser, including nested qualified names, async functions, signatures, and source line ranges.
-- Python import relationship extraction.
+- Static import/include edges for Python, JavaScript/TypeScript, Java/Kotlin, Go, C/C++, Rust, and C# (heuristic syntax extraction; not a complete compiler-level dependency graph).
 - SQLite metadata and FTS5 full-text search.
 - Search, symbols, graph, file evidence, and memory CRUD API endpoints.
 - Evidence retrieval endpoint with line-numbered snippets, source hashes, and indexed commit metadata.
