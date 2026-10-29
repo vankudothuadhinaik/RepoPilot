@@ -202,6 +202,17 @@ def ask_repository(repo_id: str, payload: AskRequest) -> dict[str, Any]:
             "snippet": snippet, "sha256": file_data["sha256"],
             "indexed_commit": require_repo(repo_id).get("indexed_commit"),
         })
+    if not evidence:
+        return {
+            "answer": (
+                "I couldn't verify an answer from query-matched repository evidence. "
+                "Try a more specific identifier or re-index the current checkout."
+            ),
+            "evidence": [],
+            "abstained": True,
+            "mode": "retrieval_only",
+        }
+
     generated_answer = generate_grounded_answer(payload.question, evidence)
     if generated_answer:
         answer = generated_answer
