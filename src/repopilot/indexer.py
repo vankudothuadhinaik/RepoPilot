@@ -13,7 +13,6 @@ from repopilot.security import (
     should_ignore,
 )
 
-
 PARSER_VERSION = "2"
 
 
