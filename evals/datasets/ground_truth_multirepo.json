@@ -214,7 +214,7 @@
     {
       "id": "multirepo-positive-001",
       "repository": "datapulse",
-      "query": "API key constant-time comparison configured authentication",
+      "query": "secrets compare_digest x_api_key expected",
       "expected_path": "backend/app/main.py",
       "expected_start_line": 33,
       "expected_end_line": 33,
@@ -224,7 +224,7 @@
     {
       "id": "multirepo-positive-002",
       "repository": "datapulse",
-      "query": "readiness database readiness select one query",
+      "query": "db execute select readiness",
       "expected_path": "backend/app/main.py",
       "expected_start_line": 67,
       "expected_end_line": 67,
@@ -234,7 +234,7 @@
     {
       "id": "multirepo-positive-003",
       "repository": "datapulse",
-      "query": "analytics revenue sum coalesce null safe",
+      "query": "coalesce sum Event value",
       "expected_path": "backend/app/main.py",
       "expected_start_line": 91,
       "expected_end_line": 91,
@@ -244,7 +244,7 @@
     {
       "id": "multirepo-positive-004",
       "repository": "datapulse",
-      "query": "top events count group ordering event name",
+      "query": "top events order_by Event event_name",
       "expected_path": "backend/app/main.py",
       "expected_start_line": 100,
       "expected_end_line": 100,
@@ -254,7 +254,7 @@
     {
       "id": "multirepo-positive-005",
       "repository": "datapulse",
-      "query": "event schema rejects extra fields forbid",
+      "query": "ConfigDict extra forbid",
       "expected_path": "backend/app/schemas.py",
       "expected_start_line": 25,
       "expected_end_line": 25,
@@ -264,7 +264,7 @@
     {
       "id": "multirepo-positive-006",
       "repository": "datapulse",
-      "query": "event model composite occurred time event name index",
+      "query": "ix_events_time_name occurred_at event_name",
       "expected_path": "backend/app/models.py",
       "expected_start_line": 11,
       "expected_end_line": 11,
@@ -274,7 +274,7 @@
     {
       "id": "multirepo-positive-007",
       "repository": "healthstream",
-      "query": "ETL required input columns patient event amount",
+      "query": "REQUIRED_COLUMNS event_id patient_key",
       "expected_path": "healthstream_etl.py",
       "expected_start_line": 14,
       "expected_end_line": 14,
@@ -284,7 +284,7 @@
     {
       "id": "multirepo-positive-008",
       "repository": "healthstream",
-      "query": "ETL event date canonical isoformat validation",
+      "query": "event_date isoformat raw_date",
       "expected_path": "healthstream_etl.py",
       "expected_start_line": 42,
       "expected_end_line": 42,
@@ -294,7 +294,7 @@
     {
       "id": "multirepo-positive-009",
       "repository": "healthstream",
-      "query": "ETL amount finite nonnegative Decimal rejection",
+      "query": "amount is_finite raw_amount",
       "expected_path": "healthstream_etl.py",
       "expected_start_line": 50,
       "expected_end_line": 50,
@@ -304,7 +304,7 @@
     {
       "id": "multirepo-positive-010",
       "repository": "healthstream",
-      "query": "ETL duplicate event id detection seen ids",
+      "query": "seen_ids duplicate event_id",
       "expected_path": "healthstream_etl.py",
       "expected_start_line": 104,
       "expected_end_line": 104,
@@ -314,7 +314,7 @@
     {
       "id": "multirepo-positive-011",
       "repository": "healthstream",
-      "query": "ETL duplicate CSV column names header validation",
+      "query": "fieldnames duplicate column names",
       "expected_path": "healthstream_etl.py",
       "expected_start_line": 88,
       "expected_end_line": 88,
@@ -324,7 +324,7 @@
     {
       "id": "multirepo-positive-012",
       "repository": "healthstream",
-      "query": "daily summary aggregate event date encounter type",
+      "query": "aggregates event_date encounter_type",
       "expected_path": "healthstream_etl.py",
       "expected_start_line": 121,
       "expected_end_line": 121,
@@ -334,7 +334,7 @@
     {
       "id": "multirepo-positive-013",
       "repository": "matching-engine",
-      "query": "order book add order rejects invalid price zero quantity duplicate id",
+      "query": "price quantity orders contains id",
       "expected_path": "src/OrderBook.cpp",
       "expected_start_line": 12,
       "expected_end_line": 12,
@@ -344,7 +344,7 @@
     {
       "id": "multirepo-positive-014",
       "repository": "matching-engine",
-      "query": "matching engine buy crosses resting price comparison",
+      "query": "incoming_price resting_price",
       "expected_path": "src/OrderBook.cpp",
       "expected_start_line": 36,
       "expected_end_line": 36,
@@ -354,7 +354,7 @@
     {
       "id": "multirepo-positive-015",
       "repository": "matching-engine",
-      "query": "cancel order erase order release pool object",
+      "query": "cancelOrder orders erase",
       "expected_path": "src/OrderBook.cpp",
       "expected_start_line": 86,
       "expected_end_line": 86,
@@ -364,7 +364,7 @@
     {
       "id": "multirepo-positive-016",
       "repository": "matching-engine",
-      "query": "matching engine partial fill min remaining resting quantity",
+      "query": "std min remaining resting",
       "expected_path": "src/OrderBook.cpp",
       "expected_start_line": 115,
       "expected_end_line": 115,
@@ -374,7 +374,7 @@
     {
       "id": "multirepo-positive-017",
       "repository": "matching-engine",
-      "query": "order book best bid empty sentinel minimum price",
+      "query": "bestBid bids empty numeric_limits",
       "expected_path": "src/OrderBook.cpp",
       "expected_start_line": 152,
       "expected_end_line": 152,
@@ -384,7 +384,7 @@
     {
       "id": "multirepo-positive-018",
       "repository": "matching-engine",
-      "query": "order pool grows storage when free list empty",
+      "query": "free empty storage make_unique",
       "expected_path": "src/OrderPool.cpp",
       "expected_start_line": 22,
       "expected_end_line": 22,
