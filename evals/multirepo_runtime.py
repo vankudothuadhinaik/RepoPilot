@@ -10,10 +10,10 @@ from typing import Any
 
 try:
     from evals.multirepo_corpus import _prepare_corpora, _register_corpora
-    from evals.multirepo_scoring import _build_report, _evaluate_question
+    from evals.multirepo_scoring import QuestionContext, _build_report, _evaluate_question
 except ModuleNotFoundError:
     from multirepo_corpus import _prepare_corpora, _register_corpora
-    from multirepo_scoring import _build_report, _evaluate_question
+    from multirepo_scoring import QuestionContext, _build_report, _evaluate_question
 
 
 @dataclass(frozen=True)
@@ -93,11 +93,13 @@ def _run_offline_evaluation(
         repo_ids = _register_corpora(client, corpus_roots, headers)
         details = [
             _evaluate_question(
-                client,
                 question,
-                repo_ids[question["repository"]],
-                corpus_roots[question["repository"]],
-                headers,
+                QuestionContext(
+                    client=client,
+                    repo_id=repo_ids[question["repository"]],
+                    corpus_root=corpus_roots[question["repository"]],
+                    headers=headers,
+                ),
             )
             for question in dataset.questions
         ]
