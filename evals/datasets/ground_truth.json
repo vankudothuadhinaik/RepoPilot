@@ -37,7 +37,7 @@
     },
     {
       "id": "ground-truth-006",
-      "query": "safe repository root resolve path",
+      "query": "safe_repository_root expanduser resolve strict",
       "expected_path": "src/repopilot/security.py",
       "expected_symbol": "safe_repository_root",
       "expected_start_line": 130,
@@ -46,7 +46,7 @@
     },
     {
       "id": "ground-truth-007",
-      "query": "read safe text symlink regular file",
+      "query": "read_safe_text open file descriptor nofollow",
       "expected_path": "src/repopilot/security.py",
       "expected_symbol": "read_safe_text",
       "expected_start_line": 243,
@@ -73,7 +73,7 @@
     },
     {
       "id": "ground-truth-010",
-      "query": "fallback search path tokens rank",
+      "query": "fallback path prefix language rows",
       "expected_path": "src/repopilot/store.py",
       "expected_symbol": "_fallback_search",
       "expected_start_line": 333,
@@ -82,7 +82,7 @@
     },
     {
       "id": "ground-truth-011",
-      "query": "create memory evidence summary proposed",
+      "query": "create_memory kind summary evidence",
       "expected_path": "src/repopilot/store.py",
       "expected_symbol": "create_memory",
       "expected_start_line": 404,
@@ -109,7 +109,7 @@
     },
     {
       "id": "ground-truth-014",
-      "query": "delete repository file search",
+      "query": "delete_repository file_search repositories",
       "expected_path": "src/repopilot/store.py",
       "expected_symbol": "delete_repository",
       "expected_start_line": 459,
