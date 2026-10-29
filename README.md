@@ -12,7 +12,7 @@ RepoPilot aims to help developers understand unfamiliar repositories, find relev
 
 - Local repository registration and content-hash-based incremental re-indexing, with per-run added/updated/removed/unchanged counts in the API and dashboard.
 - File filtering, common secret-file exclusions, symlink skipping, and file-size limits.
-- Python function/class discovery using the standard-library AST parser.
+- Python function/class discovery using the standard-library AST parser, including nested qualified names, async functions, readable signatures, and source line ranges.
 - Python import relationship extraction.
 - SQLite metadata and FTS5 full-text search.
 - Search, symbols, graph, file evidence, and memory CRUD API endpoints.
@@ -27,7 +27,7 @@ RepoPilot aims to help developers understand unfamiliar repositories, find relev
 - Semantic embeddings or reranking.
 - Additional LLM provider adapters beyond the OpenAI-compatible chat-completions interface.
 - Complete Java/C++/TypeScript symbol and call-graph analysis.
-- Filesystem walking and hashing are still full-tree on reindex; unchanged file parsing and SQLite/FTS writes are skipped, with changed/deleted paths updated incrementally.
+- Filesystem walking and hashing are still full-tree on reindex; unchanged file parsing and SQLite/FTS writes are skipped, with changed/deleted paths updated incrementally. Parser-version changes trigger a one-time rebuild of derived symbol/import records.
 - Background indexing jobs.
 - Multi-user tenancy, cloud repository import, approved patch application, and isolated command execution. Optional bearer-token protection is available for the HTTP API; it is not a full identity or role system.
 - A meaningful 50+ question benchmark or production security certification.
