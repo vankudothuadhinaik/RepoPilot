@@ -29,6 +29,6 @@ flowchart TD
 
 - Semantic embeddings and model-generated explanations are not implemented.
 - Symbol extraction is currently Python-specific.
-- The graph currently records static Python imports, not a complete call graph.
+- The graph records conservative static import/include/use edges for Python, JavaScript/TypeScript, Java/Kotlin, Go, C/C++, Rust, and C#. These edges are heuristic and do not constitute a complete compiler-resolved dependency graph or call graph.
 - Indexing is synchronous and intended for local repositories of modest size.
 - API authentication, multi-user tenancy, background jobs, and patch execution are not implemented.
