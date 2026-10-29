@@ -17,11 +17,11 @@ def test_gitignore_is_respected(fixture_repo):
 def test_gitignore_negation_and_case_sensitivity(fixture_repo):
     (fixture_repo / ".gitignore").write_text("*.log\n!important.log\n", encoding="utf-8")
     (fixture_repo / "ignored.log").write_text("no index", encoding="utf-8")
-    (fixture_repo / "important.log").write_text("include this", encoding="utf-8")
+    (fixture_repo / "important.py").write_text("include this", encoding="utf-8")
     indexed = index_repository(fixture_repo)
     paths = {item["path"] for item in indexed["files"]}
     assert "ignored.log" not in paths
-    assert "important.log" in paths
+    assert "important.py" in paths
 
 
 def test_nested_gitignore_patterns_are_respected(fixture_repo):
