@@ -337,7 +337,7 @@ class Store:
             rows = db.execute("SELECT source,target,kind,confidence FROM relationships WHERE repository_id=? LIMIT ?",
                               (repo_id, max(1, min(limit, 500)))).fetchall()
             return {"edges": [dict(row) for row in rows],
-                    "note": "Python imports are extracted statically; import targets are not guaranteed to resolve."}
+                    "note": "Static imports/includes are extracted for supported languages; edges are heuristic and targets are not guaranteed to resolve."}
 
     def create_memory(self, repo_id: str, kind: str, summary: str, evidence: list[str],
                       status: str = "proposed") -> dict[str, Any]:

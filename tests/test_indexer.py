@@ -1,6 +1,6 @@
 import pytest
 
-from repopilot.indexer import index_repository, parse_python
+from repopilot.indexer import extract_imports, index_repository, parse_python
 
 
 def test_extracts_python_symbols_and_skips_secrets(fixture_repo):
@@ -83,3 +83,25 @@ def test_known_hashes_skip_parsing_unchanged_files(fixture_repo, monkeypatch):
     assert result["files"]
     assert result["symbols"] == []
     assert result["imports"] == []
+
+def test_extracts_static_import_edges_for_common_languages():
+    cases = [
+        ("main.ts", "typescript", 'import { client } from "@app/client";\nexport { helper } from "./helper";'),
+        ("Main.java", "java", "import java.util.List;\nimport static java.util.Collections.emptyList;"),
+        ("main.go", "go", 'import (\n  "fmt"\n  http "net/http"\n)'),
+        ("main.cpp", "cpp", '#include <vector>\n#include "local/header.hpp"'),
+        ("lib.rs", "rust", "use std::collections::HashMap;\nmod routes;"),
+        ("Program.cs", "csharp", "using System.Collections.Generic;"),
+    ]
+    for path, language, source in cases:
+        edges = extract_imports(path, source, language)
+        assert edges, path
+        assert all(edge["source"] == path for edge in edges)
+        assert all(edge["target"] for edge in edges)
+
+    ts_edges = extract_imports("main.ts", cases[0][2], "typescript")
+    assert {edge["target"] for edge in ts_edges} == {"@app/client", "./helper"}
+    go_edges = extract_imports("main.go", cases[2][2], "go")
+    assert {edge["target"] for edge in go_edges} == {"fmt", "net/http"}
+    cpp_edges = extract_imports("main.cpp", cases[3][2], "cpp")
+    assert {edge["target"] for edge in cpp_edges} == {"vector", "local/header.hpp"}
