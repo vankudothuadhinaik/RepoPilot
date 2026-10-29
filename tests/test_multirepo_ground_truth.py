@@ -62,3 +62,37 @@ def test_clean_root_excludes_all_ground_truth_and_fixture_data(tmp_path):
     assert not (destination / "evals" / "datasets" / "ground_truth.json").exists()
     assert not (destination / "evals" / "datasets" / "ground_truth_multirepo.json").exists()
     assert not (destination / "evals" / "corpora").exists()
+
+
+def test_materialize_snapshot_checks_revision_and_rejects_traversal(tmp_path):
+    import json
+
+    from evals.run_multirepo_ground_truth import _materialize_snapshot
+
+    source_root = tmp_path / "snapshot"
+    source_root.mkdir()
+    metadata = {
+        "id": "sample",
+        "commit": "abc123",
+        "upstream": "https://example.invalid/sample",
+    }
+    (source_root / "snapshot.json").write_text(
+        json.dumps(
+            {
+                "commit": "abc123",
+                "upstream": "https://example.invalid/sample",
+                "files": {"README.md": "# Source snapshot\n", "src/a.py": "def main():\n    return 1\n"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    destination = tmp_path / "materialized"
+    _materialize_snapshot(source_root, destination, metadata)
+    assert (destination / "src" / "a.py").is_file()
+
+    with pytest.raises(ValueError, match="pinned source revision mismatch"):
+        _materialize_snapshot(
+            source_root,
+            tmp_path / "wrong-revision",
+            {**metadata, "commit": "different"},
+        )
