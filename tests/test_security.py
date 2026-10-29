@@ -184,6 +184,12 @@ def test_gitignore_escaped_comment_is_a_pattern(fixture_repo):
     (fixture_repo / "#private.py").write_text("def hidden(): pass\n", encoding="utf-8")
     (fixture_repo / "public.py").write_text("def public(): pass\n", encoding="utf-8")
 
+    from repopilot.security import _gitignore_patterns, _matches_gitignore
+
+    patterns = _gitignore_patterns(fixture_repo)
+    assert patterns == [r"\\#private.py"]
+    assert _matches_gitignore(fixture_repo, fixture_repo / "#private.py", patterns)
+
     indexed = index_repository(fixture_repo)
     paths = {item["path"] for item in indexed["files"]}
     assert "#private.py" not in paths
