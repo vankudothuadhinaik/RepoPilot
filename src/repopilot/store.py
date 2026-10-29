@@ -137,10 +137,6 @@ class Store:
                 "SELECT path, sha256 FROM files WHERE repository_id=?", (repo_id,)
             ).fetchall()
             current = {row["path"]: row["sha256"] for row in current_rows}
-            parser_changed = (
-                db.execute("SELECT parser_version FROM repositories WHERE id=?", (repo_id,)).fetchone()["parser_version"]
-                != data.get("parser_version", PARSER_VERSION)
-            )
             removed = set(current) - set(incoming)
             changed = {
                 path for path, item in incoming.items()
