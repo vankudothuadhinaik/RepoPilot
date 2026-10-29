@@ -278,3 +278,20 @@ def test_concurrent_indexing_from_separate_store_instances(fixture_repo, tmp_pat
     with stores[0].connect() as db:
         assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+
+def test_concurrent_full_scans_and_reindexes_preserve_integrity(fixture_repo, store):
+    from concurrent.futures import ThreadPoolExecutor
+
+    def scan_and_index(_):
+        return store.index(index_repository(fixture_repo))
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(scan_and_index, range(4)))
+
+    repo_ids = {result["id"] for result in results}
+    assert len(repo_ids) == 1
+    repo_id = repo_ids.pop()
+    assert store.get_file(repo_id, "app.py") is not None
+    with store.connect() as db:
+        assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
