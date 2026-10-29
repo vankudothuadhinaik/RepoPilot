@@ -6,6 +6,9 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+PARSER_VERSION = "2"
+
+
 from repopilot.security import (
     _gitignore_patterns,
     read_safe_text,
@@ -115,7 +118,9 @@ def extract_imports(path: str, content: str, language: str) -> list[dict[str, st
 
 
 def index_repository(
-    raw_root: str | Path, known_hashes: dict[str, str] | None = None
+    raw_root: str | Path,
+    known_hashes: dict[str, str] | None = None,
+    known_parser_version: str | None = None
 ) -> dict[str, Any]:
     root = safe_repository_root(raw_root)
     patterns = _gitignore_patterns(root)
@@ -141,7 +146,11 @@ def index_repository(
             })
             # Reuse the persisted symbol/import records for byte-identical files.
             # The file body is still read and hashed so deletions and edits are detected.
-            if known_hashes is None or known_hashes.get(rel) != digest:
+            if (
+                known_hashes is None
+                or known_parser_version != PARSER_VERSION
+                or known_hashes.get(rel) != digest
+            ):
                 if language == "python":
                     symbols.extend(parse_python(rel, content))
                 imports.extend(extract_imports(rel, content, language))
@@ -149,6 +158,7 @@ def index_repository(
             errors.append({"path": str(path), "error": str(exc)})
     return {
         "root": str(root),
+        "parser_version": PARSER_VERSION,
         "name": root.name,
         "branch": git_value(root, "branch", "--show-current"),
         "commit": git_value(root, "rev-parse", "HEAD"),
