@@ -155,3 +155,35 @@ def test_partial_index_scan_does_not_delete_unseen_files_or_advance_parser_versi
             (repo_id,),
         ).fetchone()["outcome"]
     assert outcome == "partial"
+
+
+
+def test_failed_index_transaction_rolls_back_repository_and_rows(fixture_repo, store):
+    data = index_repository(fixture_repo)
+    assert data["files"]
+    data["files"][0].pop("size_bytes")
+    try:
+        store.index(data)
+    except KeyError as exc:
+        assert exc.args == ("size_bytes",)
+    else:
+        raise AssertionError("malformed snapshot should fail")
+    assert store.list_repositories() == []
+    with store.connect() as db:
+        assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+
+
+def test_repository_deletion_cleans_fts_and_cascades_related_rows(fixture_repo, store):
+    repo = store.index(index_repository(fixture_repo))
+    repo_id = repo["id"]
+    store.create_memory(repo_id, "decision", "temporary", ["README.md"])
+    assert store.delete_repository(repo_id)
+    assert store.repository(repo_id) is None
+    assert store.search(repo_id, "greet") == []
+    with store.connect() as db:
+        assert db.execute(
+            "SELECT COUNT(*) FROM file_search WHERE repository_id=?", (repo_id,)
+        ).fetchone()[0] == 0
+        assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
