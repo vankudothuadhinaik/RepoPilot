@@ -72,7 +72,7 @@ def citation_is_valid(item: dict[str, Any], root: Path) -> bool:
     )
 
 def _normalize_text(value: str) -> str:
-    return re.sub(r"\\s+", " ", value).strip()
+    return re.sub(r"\s+", " ", value).strip()
 
 
 def _cited_source_lines(answer: str, evidence: list[dict[str, Any]]) -> list[str]:
