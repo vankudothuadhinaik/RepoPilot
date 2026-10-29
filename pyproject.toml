@@ -42,3 +42,7 @@ ignore = ["E501"]
 python_version = "3.11"
 mypy_path = "src"
 strict = false
+
+[[tool.mypy.overrides]]
+module = ["repopilot.mcp_server"]
+ignore_missing_imports = true
