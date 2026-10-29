@@ -35,3 +35,12 @@ def test_negative_case_requires_no_answer_and_no_evidence(tmp_path):
     question = {"id": "negative", "expected_path": None}
     assert score_case(question, {"abstained": True, "answer": "", "evidence": []}, tmp_path)["unsupported_question_abstained"]
     assert not score_case(question, {"abstained": False, "answer": "Guess", "evidence": []}, tmp_path)["unsupported_question_abstained"]
+
+
+def test_live_evaluation_skips_without_provider_key(monkeypatch, tmp_path):
+    from evals.run_provider_eval import evaluate
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    result = evaluate(tmp_path)
+    assert result["status"] == "skipped"
+    assert "no provider score" in result["reason"]
