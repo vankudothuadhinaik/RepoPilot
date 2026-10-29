@@ -263,3 +263,8 @@ Repository content must be treated as untrusted input. Secret-path exclusions re
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+
+### Multi-repository evaluation status
+
+The offline multi-repository evaluation uses 41 maintainer-authored cases (31 positive, 10 unsupported) across four pinned repository snapshots. Its dataset records provenance and commit IDs, and CI publishes per-case results as an artifact. Expected source ranges are checked automatically, but independent second-person review remains pending. Automated retrieval and citation checks do not establish semantic claim entailment; live provider evaluation remains opt-in and depends on available provider credits.
