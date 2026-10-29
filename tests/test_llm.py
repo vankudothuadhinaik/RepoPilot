@@ -150,3 +150,17 @@ def test_llm_handles_invalid_provider_json(monkeypatch):
     assert generate_grounded_answer(
         "Where is auth?", [{"path": "src/auth.py", "snippet": "auth"}]
     ) is None
+
+def test_llm_rejects_malformed_provider_ports_and_authority(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    for url in (
+        "http://example.com:99999/v1",
+        "http://user:password@example.com/v1",
+        "http://bad host/v1",
+        "https://example.com/v1?redirect=1",
+        "https://example.com/v1#fragment",
+    ):
+        monkeypatch.setenv("OPENAI_BASE_URL", url)
+        assert generate_grounded_answer(
+            "Where is auth?", [{"path": "src/auth.py", "snippet": "auth"}]
+        ) is None
