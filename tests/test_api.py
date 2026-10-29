@@ -12,6 +12,24 @@ def test_health_and_repository_workflow(client, fixture_repo):
     }).status_code == 201
 
 
+def test_ask_returns_line_addressable_evidence(client, fixture_repo):
+    response = client.post("/api/repos", json={"path": str(fixture_repo)})
+    repo_id = response.json()["id"]
+
+    ask = client.post(
+        f"/api/repos/{repo_id}/ask",
+        json={"question": "greet", "limit": 5},
+    )
+
+    assert ask.status_code == 200
+    body = ask.json()
+    assert body["abstained"] is False
+    citation = next(item for item in body["evidence"] if item["path"] == "app.py")
+    assert citation["start_line"] <= 1 <= citation["end_line"]
+    assert "1: def greet" in citation["snippet"]
+    assert citation["sha256"]
+
+
 def test_missing_repository_is_404(client):
     assert client.get("/api/repos/missing").status_code == 404
 
