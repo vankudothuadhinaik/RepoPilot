@@ -91,7 +91,6 @@ def evaluate(root: Path, dataset_path: Path | None = None) -> dict[str, Any]:
     previous_token = os.environ.get("REP_PILOT_API_TOKEN")
     previous_data_dir = os.environ.get("REP_PILOT_DATA_DIR")
     details: list[dict[str, Any]] = []
-    durations: list[float] = []
     try:
         with tempfile.TemporaryDirectory(prefix="repopilot-multirepo-eval-") as temporary:
             temporary_root = Path(temporary)
@@ -113,6 +112,7 @@ def evaluate(root: Path, dataset_path: Path | None = None) -> dict[str, Any]:
                 corpus_roots[name] = corpus_root
 
             from fastapi.testclient import TestClient
+
             from repopilot.api import app
 
             client = TestClient(app)
