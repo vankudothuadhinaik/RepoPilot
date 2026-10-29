@@ -48,3 +48,8 @@ PYTHONPATH=src python evals/benchmark_matrix.py /path/to/repo-small /path/to/rep
 The matrix runner records each repository's file count/bytes, first scan and persistence time, unchanged incremental scan/persistence time, fixed-query median/p95 latency, database size, scan errors, and Python-tracked peak allocations. Choose repositories that you are authorized to inspect and record their provenance and machine/runtime details when publishing results. The tool does not assign size categories automatically; label categories only when the file counts/bytes and selection criteria are disclosed.
 
 This expands the repeatable measurement workflow but does not itself supply an independently curated retrieval-question set, run an external corpus, or measure semantic citation correctness. Those require separate datasets and, for LLM metrics, controlled provider runs.
+
+
+## Optional live provider evaluation
+
+See [live provider evaluation](live-provider-evaluation.md) for the opt-in provider-backed run, report fields, secret handling, and interpretation limits. This evaluation is intentionally not required for ordinary CI because it requires a paid/external provider and repository source may be sent to that provider. Offline tests remain the deterministic baseline.
