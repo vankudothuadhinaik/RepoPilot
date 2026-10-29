@@ -41,7 +41,8 @@ class Store:
                     id TEXT PRIMARY KEY, name TEXT NOT NULL, root_path TEXT NOT NULL UNIQUE,
                     branch TEXT, indexed_commit TEXT, status TEXT NOT NULL DEFAULT 'indexed',
                     indexed_at TEXT NOT NULL, file_count INTEGER NOT NULL DEFAULT 0,
-                    symbol_count INTEGER NOT NULL DEFAULT 0, errors_json TEXT NOT NULL DEFAULT '[]'
+                    symbol_count INTEGER NOT NULL DEFAULT 0, parser_version TEXT NOT NULL DEFAULT '1',
+                    errors_json TEXT NOT NULL DEFAULT '[]'
                 );
                 CREATE TABLE IF NOT EXISTS files (
                     repository_id TEXT NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
@@ -77,6 +78,13 @@ class Store:
                     target TEXT, outcome TEXT NOT NULL, created_at TEXT NOT NULL, details_json TEXT NOT NULL
                 );
             """)
+            repository_columns = {
+                row["name"] for row in db.execute("PRAGMA table_info(repositories)").fetchall()
+            }
+            if "parser_version" not in repository_columns:
+                db.execute(
+                    "ALTER TABLE repositories ADD COLUMN parser_version TEXT NOT NULL DEFAULT '1'"
+                )
 
     def audit(self, repository_id: str | None, action: str, target: str | None,
               outcome: str, details: dict[str, Any] | None = None) -> None:
@@ -96,22 +104,25 @@ class Store:
         """
         with self.connect() as db:
             existing = db.execute(
-                "SELECT id FROM repositories WHERE root_path=?", (data["root"],)
+                "SELECT id, parser_version FROM repositories WHERE root_path=?", (data["root"],)
             ).fetchone()
+            parser_version = str(data.get("parser_version", "1"))
+            parser_changed = existing is not None and existing["parser_version"] != parser_version
             repo_id = existing["id"] if existing else str(uuid.uuid4())
             db.execute(
                 """
                 INSERT INTO repositories(id,name,root_path,branch,indexed_commit,status,indexed_at,
-                    file_count,symbol_count,errors_json)
-                VALUES(?,?,?,?,?,'indexed',?,?,?,?)
+                    file_count,symbol_count,parser_version,errors_json)
+                VALUES(?,?,?,?,?,'indexed',?,?,?,?,?)
                 ON CONFLICT(root_path) DO UPDATE SET
                     name=excluded.name, branch=excluded.branch, indexed_commit=excluded.indexed_commit,
                     status='indexed', indexed_at=excluded.indexed_at, file_count=excluded.file_count,
-                    symbol_count=excluded.symbol_count, errors_json=excluded.errors_json
+                    symbol_count=excluded.symbol_count, parser_version=excluded.parser_version,
+                    errors_json=excluded.errors_json
                 """,
                 (
                     repo_id, data["name"], data["root"], data["branch"], data["commit"], now(),
-                    len(data["files"]), len(data["symbols"]), json.dumps(data["errors"]),
+                    len(data["files"]), len(data["symbols"]), parser_version, json.dumps(data["errors"]),
                 ),
             )
             repo_id = db.execute(
@@ -128,6 +139,9 @@ class Store:
                 path for path, item in incoming.items()
                 if current.get(path) != item["sha256"]
             }
+            if parser_changed:
+                # Rebuild derived records after parser behavior changes even when file bytes do not.
+                changed = set(incoming)
 
             # Delete removed files and all derived rows tied to those paths.
             for path in sorted(removed):
@@ -222,6 +236,15 @@ class Store:
                 "SELECT path, sha256 FROM files WHERE repository_id=?", (row["id"],)
             ).fetchall()
             return {item["path"]: item["sha256"] for item in rows}
+
+    def parser_version_for_root(self, root_path: str | Path) -> str | None:
+        """Return the parser version used for the indexed repository at this root."""
+        canonical_root = str(Path(root_path).expanduser().resolve())
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT parser_version FROM repositories WHERE root_path=?", (canonical_root,)
+            ).fetchone()
+            return str(row["parser_version"]) if row else None
 
     def list_repositories(self) -> list[dict[str, Any]]:
         with self.connect() as db:
