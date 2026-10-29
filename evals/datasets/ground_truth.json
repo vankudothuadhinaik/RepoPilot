@@ -72,13 +72,13 @@
       "query": "read_safe_text open file descriptor nofollow",
       "expected_path": "src/repopilot/security.py",
       "expected_symbol": "read_safe_text",
-      "expected_start_line": 236,
-      "expected_end_line": 328,
+      "expected_start_line": 238,
+      "expected_end_line": 330,
       "category": "filesystem_safety",
       "repository": "RepoPilot",
       "expected_fact": "Safe file reads use handle-based checks and no-follow semantics.",
       "expected_fact_anchor": "def read_safe_text",
-      "source_revision": "773b4de9ddc72f611763cb642c25ba2ea9e7b4dc"
+      "source_revision": "8f9a8c9"
     },
     {
       "id": "ground-truth-008",

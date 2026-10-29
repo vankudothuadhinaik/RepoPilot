@@ -12,7 +12,7 @@
     {
       "id": "RepoPilot",
       "upstream": "https://github.com/vankudothuadhinaik/RepoPilot",
-      "commit": "773b4de9ddc72f611763cb642c25ba2ea9e7b4dc",
+      "commit": "8f9a8c9",
       "snapshot": "checked-out root supplied with --root"
     },
     {
@@ -87,8 +87,8 @@
       "query": "read_safe_text open file descriptor nofollow",
       "expected_path": "src/repopilot/security.py",
       "expected_symbol": "read_safe_text",
-      "expected_start_line": 236,
-      "expected_end_line": 328,
+      "expected_start_line": 238,
+      "expected_end_line": 330,
       "category": "filesystem_safety",
       "repository": "RepoPilot"
     },

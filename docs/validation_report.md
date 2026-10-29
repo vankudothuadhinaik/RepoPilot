@@ -2,12 +2,12 @@
 
 ## Scope and reproducibility
 
-P3 evaluation changes are merged in commit `81db677152e0b5ce70936cb6116c2dee6ac4ef98`. This report reflects the remote GitHub Actions run against that exact commit rather than a developer-specific local workspace.
+P0 hardening and P3 evaluation changes are present on `main` at commit `8f9a8c92385c1fd23156f0e5fa32bf7673842574`. The local release-validation run below was performed on Windows 11 with Python 3.14.8 and Docker Desktop, against that checkout plus the small type-safety and ground-truth maintenance fixes recorded in the working diff.
 
-- [CI run](https://github.com/vankudothuadhinaik/RepoPilot/actions/runs/40921608962) — passed.
-- [CodeQL run](https://github.com/vankudothuadhinaik/RepoPilot/actions/runs/40921608715) — passed.
-- Python 3.11 and 3.12 tests passed; Ruff, Mypy, Windows security, Docker build, frontend build, and optional MCP checks passed.
-- Python test summary on the Python 3.11 job: 77 passed, 1 warning; coverage report was 74% for `src/repopilot`.
+- [CI run](https://github.com/vankudothuadhinaik/RepoPilot/actions/runs/40926370963) — passed; the optional live-provider step produced a failed provider report as expected and is non-blocking.
+- [CodeQL run](https://github.com/vankudothuadhinaik/RepoPilot/actions/runs/40926370962) — passed.
+- The remote CI and CodeQL runs linked above passed for the P3 baseline. The local run passed 88 Python tests, Ruff, Mypy, compilation, the synthetic evaluator, the 15-case in-repository ground-truth evaluator, the 41-case multi-repository evaluator, the pinned snapshot performance matrix, frontend `npm ci`, `npm audit`, frontend production build, Compose validation, and Docker startup/authentication checks.
+- The local test run used Python 3.14.8; coverage was not collected in this validation pass.
 
 ## Offline source-grounded evaluation
 
@@ -38,3 +38,9 @@ The report now includes the dataset hash/version, configured model and provider 
 - Independent second-person review of all expected paths, ranges, fact anchors, and unsupported cases is still required before calling the corpus independently reviewed.
 - A successful live-provider run requires valid provider credits and a rerun of the evaluation.
 - No external penetration test or independent production-scale retrieval study is claimed.
+
+## Local deployment evidence
+
+The verified local deployment binds only to `127.0.0.1:8010` and forwards to container port `8000`. It was rebuilt and started with `doppler run -- docker compose up --build -d`. Readiness returned HTTP 200; unauthenticated and wrong-token `/api/repos` requests returned HTTP 401; a request using the Doppler-provided token returned HTTP 200 without printing the token. Restart recovery preserved the indexed repository. The container ran as `appuser` with a read-only root filesystem, all capabilities dropped, no-new-privileges, `/tmp` tmpfs, and the named `/data` volume.
+
+Missing-token Compose interpolation failed closed. These checks are local deployment evidence, not an external penetration test or production-scale assurance.
