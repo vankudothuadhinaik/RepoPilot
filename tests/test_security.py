@@ -194,3 +194,39 @@ def test_gitignore_escaped_comment_is_a_pattern(fixture_repo):
     paths = {item["path"] for item in indexed["files"]}
     assert "#private.py" not in paths
     assert "public.py" in paths
+
+
+def test_root_anchored_gitignore_rule_does_not_match_nested_file(fixture_repo):
+    (fixture_repo / ".gitignore").write_text("/root_only.py\\n", encoding="utf-8")
+    (fixture_repo / "root_only.py").write_text("def hidden_root(): pass\\n", encoding="utf-8")
+    nested = fixture_repo / "nested"
+    nested.mkdir()
+    (nested / "root_only.py").write_text("def visible_nested(): pass\\n", encoding="utf-8")
+
+    indexed = index_repository(fixture_repo)
+    paths = {item["path"] for item in indexed["files"]}
+    assert "root_only.py" not in paths
+    assert "nested/root_only.py" in paths
+
+
+def test_nested_gitignore_slash_pattern_is_anchored_to_its_directory(fixture_repo):
+    nested = fixture_repo / "src"
+    nested.mkdir()
+    (nested / ".gitignore").write_text("/local.py\\n", encoding="utf-8")
+    (nested / "local.py").write_text("def hidden_local(): pass\\n", encoding="utf-8")
+    child = nested / "child"
+    child.mkdir()
+    (child / "local.py").write_text("def visible_child(): pass\\n", encoding="utf-8")
+
+    indexed = index_repository(fixture_repo)
+    paths = {item["path"] for item in indexed["files"]}
+    assert "src/local.py" not in paths
+    assert "src/child/local.py" in paths
+
+
+def test_invalid_utf8_gitignore_fails_closed_without_crashing_indexer(fixture_repo):
+    (fixture_repo / ".gitignore").write_bytes(b"\\xff\\xfe\\xfa")
+    (fixture_repo / "visible.py").write_text("def visible(): pass\\n", encoding="utf-8")
+
+    indexed = index_repository(fixture_repo)
+    assert "visible.py" in {item["path"] for item in indexed["files"]}
