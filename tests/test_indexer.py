@@ -86,11 +86,11 @@ def test_known_hashes_skip_parsing_unchanged_files(fixture_repo, monkeypatch):
 
 def test_extracts_static_import_edges_for_common_languages():
     cases = [
-        ("main.ts", "typescript", 'import { client } from "@app/client";\\nexport { helper } from "./helper";'),
-        ("Main.java", "java", "import java.util.List;\\nimport static java.util.Collections.emptyList;"),
-        ("main.go", "go", 'import (\\n  "fmt"\\n  http "net/http"\\n)'),
-        ("main.cpp", "cpp", '#include <vector>\\n#include "local/header.hpp"'),
-        ("lib.rs", "rust", "use std::collections::HashMap;\\nmod routes;"),
+        ("main.ts", "typescript", 'import { client } from "@app/client";\nexport { helper } from "./helper";'),
+        ("Main.java", "java", "import java.util.List;\nimport static java.util.Collections.emptyList;"),
+        ("main.go", "go", 'import (\n  "fmt"\n  http "net/http"\n)'),
+        ("main.cpp", "cpp", '#include <vector>\n#include "local/header.hpp"'),
+        ("lib.rs", "rust", "use std::collections::HashMap;\nmod routes;"),
         ("Program.cs", "csharp", "using System.Collections.Generic;"),
     ]
     for path, language, source in cases:
