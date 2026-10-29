@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 import os
 import re
+from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
-from typing import Any
 
 
 _CITATION = re.compile(r"\[\[([^\]]+)\]\]")
