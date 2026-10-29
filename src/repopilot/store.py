@@ -183,12 +183,32 @@ class Store:
                         "changed": len(changed),
                         "removed": len(removed),
                         "unchanged": len(incoming) - len(changed),
-                        "symbols": len(data["symbols"]),
+                        "symbols_parsed": len(data["symbols"]),
                     }),
                 ),
             )
+            symbol_count = db.execute(
+                "SELECT COUNT(*) AS count FROM symbols WHERE repository_id=?", (repo_id,)
+            ).fetchone()["count"]
+            db.execute(
+                "UPDATE repositories SET file_count=?, symbol_count=? WHERE id=?",
+                (len(incoming), symbol_count, repo_id),
+            )
             row = db.execute("SELECT * FROM repositories WHERE id=?", (repo_id,)).fetchone()
             return dict(row)
+
+    def file_hashes(self, root_path: str | Path) -> dict[str, str]:
+        """Return indexed content hashes for a repository root, if registered."""
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT id FROM repositories WHERE root_path=?", (str(root_path),)
+            ).fetchone()
+            if not row:
+                return {}
+            rows = db.execute(
+                "SELECT path, sha256 FROM files WHERE repository_id=?", (row["id"],)
+            ).fetchall()
+            return {item["path"]: item["sha256"] for item in rows}
 
     def list_repositories(self) -> list[dict[str, Any]]:
         with self.connect() as db:
