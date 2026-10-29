@@ -72,7 +72,9 @@ def extract_imports(path: str, content: str, language: str) -> list[dict[str, st
     return imports
 
 
-def index_repository(raw_root: str | Path) -> dict[str, Any]:
+def index_repository(
+    raw_root: str | Path, known_hashes: dict[str, str] | None = None
+) -> dict[str, Any]:
     root = safe_repository_root(raw_root)
     patterns = _gitignore_patterns(root)
     files: list[dict[str, Any]] = []
@@ -95,9 +97,12 @@ def index_repository(raw_root: str | Path) -> dict[str, Any]:
                 "path": rel, "language": language, "content": content,
                 "sha256": digest, "size_bytes": len(content.encode("utf-8")),
             })
-            if language == "python":
-                symbols.extend(parse_python(rel, content))
-            imports.extend(extract_imports(rel, content, language))
+            # Reuse the persisted symbol/import records for byte-identical files.
+            # The file body is still read and hashed so deletions and edits are detected.
+            if known_hashes is None or known_hashes.get(rel) != digest:
+                if language == "python":
+                    symbols.extend(parse_python(rel, content))
+                imports.extend(extract_imports(rel, content, language))
         except (OSError, ValueError) as exc:
             errors.append({"path": str(path), "error": str(exc)})
     return {

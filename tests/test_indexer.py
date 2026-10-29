@@ -19,3 +19,20 @@ def test_parse_syntax_error_returns_empty():
 def test_refuses_arbitrary_non_project_directory(tmp_path):
     with pytest.raises(ValueError):
         index_repository(tmp_path)
+
+
+
+def test_known_hashes_skip_parsing_unchanged_files(fixture_repo, monkeypatch):
+    import repopilot.indexer as indexer
+
+    initial = indexer.index_repository(fixture_repo)
+    known_hashes = {item["path"]: item["sha256"] for item in initial["files"]}
+
+    def fail_if_parsed(*args, **kwargs):
+        raise AssertionError("unchanged file should not be parsed")
+
+    monkeypatch.setattr(indexer, "parse_python", fail_if_parsed)
+    result = indexer.index_repository(fixture_repo, known_hashes=known_hashes)
+    assert result["files"]
+    assert result["symbols"] == []
+    assert result["imports"] == []
