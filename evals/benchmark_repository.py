@@ -89,7 +89,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=Path("repository_benchmark_results.json"))
     args = parser.parse_args()
     report = run(args.root)
-    args.output.write_text(json.dumps(report, indent=2) + "\\n", encoding="utf-8")
+    args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2))
 
 
