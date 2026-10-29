@@ -22,6 +22,10 @@ RepoPilot aims to help developers understand unfamiliar repositories, find relev
 - Unit/API/security regression tests, GitHub Actions CI, Dependabot, Docker, and Compose. CodeQL analysis runs in CI, but results are not uploaded as code-scanning alerts because GitHub code scanning is not enabled for this private repository.
 - Architecture, threat model, API, MCP, evaluation, and troubleshooting docs.
 
+## Evaluation
+
+`python evals/run_eval.py` runs a small smoke test and a deterministic 50-query synthetic retrieval benchmark across three fixture repositories. CI publishes `retrieval_benchmark_results.json` as a commit-specific artifact. The benchmark reports Recall@5, Recall@10, MRR@10, and negative-query abstention accuracy. It validates retrieval wiring against controlled synthetic source files; it is **not** a real-world accuracy or semantic-answer-quality claim.
+
 ## Not implemented yet
 
 - Semantic embeddings or reranking.
@@ -30,7 +34,7 @@ RepoPilot aims to help developers understand unfamiliar repositories, find relev
 - Filesystem walking and hashing are still full-tree on reindex; unchanged file parsing and SQLite/FTS writes are skipped, with changed/deleted paths updated incrementally.
 - Background indexing jobs.
 - Multi-user tenancy, cloud repository import, approved patch application, and isolated command execution. Optional bearer-token protection is available for the HTTP API; it is not a full identity or role system.
-- A meaningful 50+ question benchmark or production security certification.
+- A real-world, independently reviewed retrieval benchmark or production security certification.
 
 These are explicit follow-up milestones, not completed claims.
 
