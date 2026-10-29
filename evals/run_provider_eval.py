@@ -1,0 +1,161 @@
+"""Opt-in live-provider evaluation; emits redacted per-case metrics only."""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import tempfile
+import time
+from pathlib import Path
+from typing import Any
+
+_CITATION = re.compile(r"\[\[([^\]]+)\]\]")
+
+def citation_paths(answer: str) -> list[str]:
+    """Return paths cited with RepoPilot's exact [[relative/path]] syntax."""
+    return _CITATION.findall(answer)
+
+def citation_is_valid(item: dict[str, Any], root: Path) -> bool:
+    """Check that evidence line labels and snippets match the indexed source."""
+    path, start, end = str(item.get("path", "")), item.get("start_line"), item.get("end_line")
+    if (not path or not isinstance(start, int) or not isinstance(end, int) or start < 1
+        or end < start or Path(path).is_absolute() or ".." in Path(path).parts or "\\" in path):
+        return False
+    source = root / path
+    if not source.is_file():
+        return False
+    lines = source.read_text(encoding="utf-8").splitlines()
+    if end > len(lines):
+        return False
+    cited: dict[int, str] = {}
+    for line in str(item.get("snippet", "")).splitlines():
+        number, separator, content = line.partition(": ")
+        if separator and number.isdigit():
+            cited[int(number)] = content
+    return bool(cited) and all(
+        1 <= number <= len(lines) and lines[number - 1] == content
+        for number, content in cited.items()
+    )
+
+def score_case(question: dict[str, Any], response: dict[str, Any], root: Path) -> dict[str, Any]:
+    """Score structural evidence properties, not semantic truth of generated prose."""
+    expected_path = question.get("expected_path")
+    evidence, answer = response.get("evidence") or [], response.get("answer") or ""
+    cited_paths = citation_paths(answer)
+    valid_evidence = [
+        item for item in evidence
+        if isinstance(item, dict) and citation_is_valid(item, root)
+    ]
+    if expected_path:
+        return {
+            "id": question["id"],
+            "expected_path_found": any(item.get("path") == expected_path for item in evidence),
+            "source_lines_valid": any(item.get("path") == expected_path for item in valid_evidence),
+            "answer_has_citations": bool(cited_paths),
+            "answer_citations_supported": bool(cited_paths) and set(cited_paths).issubset(
+                {item.get("path") for item in evidence}),
+            "abstained": bool(response.get("abstained")),
+        }
+    return {
+        "id": question["id"],
+        "unsupported_question_abstained": (
+            bool(response.get("abstained")) and not evidence and not citation_paths(answer)
+        ),
+        "evidence_count": len(evidence),
+        "answer_has_citations": bool(cited_paths),
+    }
+
+def evaluate(root: Path) -> dict[str, Any]:
+    """Run the reviewed question set through the real API with a configured provider."""
+    if not os.getenv("OPENAI_API_KEY", "").strip():
+        return {"status": "skipped", "reason": "OPENAI_API_KEY is not configured; no provider score was produced."}
+    root = root.resolve()
+    dataset_path = Path(__file__).parent / "datasets" / "ground_truth.json"
+    questions = json.loads(dataset_path.read_text(encoding="utf-8"))["questions"]
+    with tempfile.TemporaryDirectory(prefix="repopilot-provider-eval-") as data_dir:
+        os.environ["REP_PILOT_API_TOKEN"] = "provider-evaluation-local-token"
+        os.environ["REP_PILOT_DATA_DIR"] = data_dir
+        from fastapi.testclient import TestClient
+
+        from repopilot.api import app
+        client = TestClient(app)
+        headers = {"Authorization": "Bearer provider-evaluation-local-token"}
+        registration = client.post("/api/repos", json={"path": str(root)}, headers=headers)
+        registration.raise_for_status()
+        repo_id = registration.json()["id"]
+        results, durations = [], []
+        for question in questions:
+            query = question.get("query") or "".join(
+                chr(value) for value in question.get("query_codepoints", [])
+            )
+            started = time.perf_counter()
+            response = client.post(
+                f"/api/repos/{repo_id}/ask",
+                json={"question": query, "limit": 5},
+                headers=headers,
+            )
+            durations.append((time.perf_counter() - started) * 1000)
+            response.raise_for_status()
+            results.append(score_case(question, response.json(), root))
+        positives = [item for item in results if "expected_path_found" in item]
+        negatives = [item for item in results if "unsupported_question_abstained" in item]
+        metrics = {
+            "expected_path_rate": (
+                round(sum(x["expected_path_found"] for x in positives) / len(positives), 4)
+                if positives else None
+            ),
+            "valid_source_evidence_rate": (
+                round(sum(x["source_lines_valid"] for x in positives) / len(positives), 4)
+                if positives else None
+            ),
+            "answer_citation_rate": (
+                round(sum(x["answer_has_citations"] for x in positives) / len(positives), 4)
+                if positives else None
+            ),
+            "supported_citation_rate": (
+                round(sum(x["answer_citations_supported"] for x in positives) / len(positives), 4)
+                if positives else None
+            ),
+            "unsupported_abstention_rate": (
+                round(sum(x["unsupported_question_abstained"] for x in negatives) / len(negatives), 4)
+                if negatives else None
+            ),
+            "latency_ms_median": round(sorted(durations)[len(durations) // 2], 2) if durations else None,
+        }
+        passed = all(
+            x.get("expected_path_found", x.get("unsupported_question_abstained", False))
+            for x in results
+        )
+        passed = passed and all(
+            x.get("source_lines_valid", True) and x.get("answer_citations_supported", True)
+            for x in positives
+        )
+        return {
+            "status": "completed", "mode": "live-provider",
+            "dataset": "evals/datasets/ground_truth.json", "question_count": len(questions),
+            "positive_count": len(positives), "negative_count": len(negatives),
+            "metrics": metrics, "results": results, "passed": passed,
+            "limitations": [
+                "The reviewed dataset is small and not representative of production use.",
+                "Citation/path checks do not prove generated claims are semantically entailed by cited source.",
+                "Provider/model identifiers and credentials are intentionally omitted.",
+                "Latency includes local indexing/API overhead as well as provider latency."
+            ]
+        }
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=Path.cwd())
+    parser.add_argument("--output", type=Path, default=None)
+    args = parser.parse_args()
+    report = evaluate(args.root)
+    rendered = json.dumps(report, indent=2, sort_keys=True)
+    print(rendered)
+    if args.output:
+        args.output.write_text(rendered + "\n", encoding="utf-8")
+    if report["status"] == "completed" and not report["passed"]:
+        raise SystemExit(1)
+
+if __name__ == "__main__":
+    main()

@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     strategy:
       fail-fast: false
       matrix:
@@ -38,6 +39,21 @@ jobs:
       - run: python -m compileall -q src
       - run: PYTHONPATH=src python evals/run_eval.py
       - run: PYTHONPATH=src python evals/run_ground_truth.py --root .
+      - name: Live provider evaluation (optional)
+        if: ${{ env.OPENAI_API_KEY != '' }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL || 'https://api.openai.com/v1' }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4.1-mini' }}
+        run: PYTHONPATH=src python evals/run_provider_eval.py --root . --output provider-evaluation.json
+      - name: Publish live provider evaluation report
+        if: ${{ always() && env.OPENAI_API_KEY != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: repopilot-live-provider-evaluation-${{ github.sha }}-py${{ matrix.python-version }}
+          path: provider-evaluation.json
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Benchmark checked-out repository
         run: PYTHONPATH=src python evals/benchmark_repository.py . --output repository_benchmark_results.json
       - name: Publish repository benchmark report
