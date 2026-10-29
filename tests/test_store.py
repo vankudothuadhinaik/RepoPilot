@@ -1,6 +1,6 @@
 import json
 
-from repopilot.indexer import index_repository
+from repopilot.indexer import PARSER_VERSION, index_repository
 
 
 def test_index_search_symbols_and_memory(fixture_repo, store):
@@ -77,8 +77,6 @@ def test_incremental_reindex_keeps_unchanged_files_searchable(fixture_repo, stor
 
 
 def test_parser_version_is_persisted_and_exposed(fixture_repo, store):
-    from repopilot.indexer import PARSER_VERSION
-
     indexed = index_repository(fixture_repo)
     repo = store.index(indexed)
     assert repo["parser_version"] == PARSER_VERSION
