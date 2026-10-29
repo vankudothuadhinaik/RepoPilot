@@ -201,7 +201,7 @@ def index_repository(
         try:
             if should_ignore(root, path, patterns):
                 continue
-            content = read_safe_text(path)
+            content = read_safe_text(path, root=root)
             if content is None:
                 continue
             rel = path.relative_to(root).as_posix()
