@@ -180,6 +180,8 @@ jobs:
 
   windows-security:
     runs-on: windows-latest
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -188,7 +190,14 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[dev]"
       - name: Test Windows file safety and indexing
-        run: python -m pytest tests/test_security.py tests/test_indexer.py
+        run: python -m pytest --cov=src/repopilot --cov-report=xml:coverage-windows.xml --cov-report=term-missing tests/test_security.py tests/test_indexer.py
+      - name: Upload Windows coverage to Codecov
+        if: ${{ env.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ env.CODECOV_TOKEN }}
+          files: coverage-windows.xml
+          fail_ci_if_error: false
 
 
   optional-mcp:
