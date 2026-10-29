@@ -90,6 +90,8 @@ def _matches_gitignore(root: Path, path: Path, patterns: list[str]) -> bool:
             # earlier in the same ignore file. Match the basename explicitly.
             if negated and not has_slash:
                 matched = fnmatch.fnmatchcase(path.name, pattern)
+            if negated and has_slash:
+                matched = fnmatch.fnmatchcase(candidate, pattern)
             if matched:
                 if negated:
                     # Git cannot re-include a child while its parent is excluded.
