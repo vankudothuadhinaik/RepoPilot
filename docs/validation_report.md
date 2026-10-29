@@ -5,8 +5,9 @@
 - README updated with current project status and a link to the no-cost provider setup.
 - Free Gemini-compatible provider support merged in [PR #48](https://github.com/vankudothuadhinaik/RepoPilot/pull/48).
 - Current documentation updates are on `main`; see [latest commit](https://github.com/vankudothuadhinaik/RepoPilot/commits/main/).
-- Previously verified code snapshot: [`9cc356575931a129df64928ca88b1b36c52d4e74`](https://github.com/vankudothuadhinaik/RepoPilot/commit/9cc356575931a129df64928ca88b1b36c52d4e74).
-- [CI](https://github.com/vankudothuadhinaik/RepoPilot/actions/runs/40942358423) and [CodeQL](https://github.com/vankudothuadhinaik/RepoPilot/actions/runs/40942358478) passed on that code snapshot.
+- Latest code-and-documentation snapshot: [`9898ccc03724c119e508567ee1ac8eaee4543ea8`](https://github.com/vankudothuadhinaik/RepoPilot/commit/9898ccc03724c119e508567ee1ac8eaee4543ea8).
+- [CI run #342](https://github.com/vankudothuadhinaik/RepoPilot/actions/runs/40948803823) passed on that exact commit, including Python 3.11/3.12 tests, Windows security checks, frontend build, Docker build, and optional MCP import.
+- [CodeQL run](https://github.com/vankudothuadhinaik/RepoPilot/actions/runs/40948803798) is linked for the same snapshot; see the run page for its conclusion.
 
 ## Offline source-grounded evaluation
 
