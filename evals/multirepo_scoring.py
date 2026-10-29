@@ -179,27 +179,60 @@ def _category_metrics(details: list[dict[str, Any]]) -> dict[str, dict[str, Any]
     }
 
 
-def _build_report(
-    dataset: dict[str, Any], dataset_bytes: bytes, questions: list[dict[str, Any]],
-    details: list[dict[str, Any]],
-) -> dict[str, Any]:
+def _group_results(
+    questions: list[dict[str, Any]], details: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     by_id = {item["id"]: item for item in details}
     positives = [item for item in questions if item.get("expected_path")]
     negatives = [item for item in questions if not item.get("expected_path")]
     symbol_cases = [item for item in positives if item.get("expected_symbol")]
-    positive_results = [by_id[item["id"]] for item in positives]
-    negative_results = [by_id[item["id"]] for item in negatives]
-    symbol_results = [by_id[item["id"]] for item in symbol_cases]
-    metrics = {
-        "positive_queries": len(positives),
-        "negative_queries": len(negatives),
-        "symbol_range_cases": len(symbol_cases),
+    return (
+        [by_id[item["id"]] for item in positives],
+        [by_id[item["id"]] for item in negatives],
+        [by_id[item["id"]] for item in symbol_cases],
+    )
+
+
+def _build_metrics(
+    questions: list[dict[str, Any]],
+    details: list[dict[str, Any]],
+    positive_results: list[dict[str, Any]],
+    negative_results: list[dict[str, Any]],
+    symbol_results: list[dict[str, Any]],
+) -> dict[str, Any]:
+    positives = sum(bool(item.get("expected_path")) for item in questions)
+    negatives = len(questions) - positives
+    return {
+        "positive_queries": positives,
+        "negative_queries": negatives,
+        "symbol_range_cases": len(symbol_results),
         **_retrieval_metrics(positive_results),
         **_evidence_metrics(positive_results, symbol_results),
         **_abstention_metrics(negative_results),
         "passed_cases": sum(bool(item["passed"]) for item in details),
         "total_cases": len(details),
     }
+
+
+def _report_limitations() -> list[str]:
+    return [
+        "Maintainer-authored expected ranges are not independent review; check authoring metadata.",
+        "Lexical retrieval, valid source lines, and symbol spans do not prove semantic entailment.",
+        "Unsupported-query scores depend on this curated set and do not establish general abstention safety.",
+        "No LLM provider is called by this offline evaluator.",
+    ]
+
+
+def _build_report(
+    dataset: dict[str, Any],
+    dataset_bytes: bytes,
+    questions: list[dict[str, Any]],
+    details: list[dict[str, Any]],
+) -> dict[str, Any]:
+    positive_results, negative_results, symbol_results = _group_results(questions, details)
+    metrics = _build_metrics(
+        questions, details, positive_results, negative_results, symbol_results
+    )
     return {
         "schema_version": 1,
         "title": dataset.get("title"),
@@ -212,10 +245,5 @@ def _build_report(
         "category_metrics": _category_metrics(details),
         "passed": all(bool(item["passed"]) for item in details),
         "results": details,
-        "limitations": [
-            "Maintainer-authored expected ranges are not independent review; check authoring metadata.",
-            "Lexical retrieval, valid source lines, and symbol spans do not prove semantic entailment.",
-            "Unsupported-query scores depend on this curated set and do not establish general abstention safety.",
-            "No LLM provider is called by this offline evaluator.",
-        ],
+        "limitations": _report_limitations(),
     }
