@@ -199,9 +199,10 @@ class Store:
 
     def file_hashes(self, root_path: str | Path) -> dict[str, str]:
         """Return indexed content hashes for a repository root, if registered."""
+        canonical_root = str(Path(root_path).expanduser().resolve())
         with self.connect() as db:
             row = db.execute(
-                "SELECT id FROM repositories WHERE root_path=?", (str(root_path),)
+                "SELECT id FROM repositories WHERE root_path=?", (canonical_root,)
             ).fetchone()
             if not row:
                 return {}
