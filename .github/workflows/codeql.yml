@@ -22,3 +22,7 @@ jobs:
         with:
           languages: python
       - uses: github/codeql-action/analyze@v3
+        with:
+          # This private repository does not have GitHub code scanning enabled.
+          # Run analysis in CI without attempting an unsupported SARIF upload.
+          upload: false
