@@ -24,7 +24,14 @@ def _provider_url(raw: str) -> str | None:
             return None
         if parsed.username or parsed.password or parsed.query or parsed.fragment:
             return None
-        if any(char.isspace() for char in raw):
+        if any(char.isspace() or ord(char) < 32 for char in raw):
+            return None
+        # Force urllib to validate the port and reject malformed hostnames early.
+        port = parsed.port
+        if port is not None and not 1 <= port <= 65535:
+            return None
+        hostname = parsed.hostname.encode("idna").decode("ascii")
+        if not hostname or any(not label or len(label) > 63 for label in hostname.split(".")):
             return None
         return raw.rstrip("/")
     except ValueError:
