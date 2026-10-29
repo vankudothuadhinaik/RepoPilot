@@ -7,7 +7,7 @@ The included dataset is intentionally tiny and is not a meaningful accuracy clai
 - Citation/path correctness.
 - Unsupported claim and abstention rates.
 - Index duration and query latency.
-- Incremental re-index correctness.
+- Incremental re-index correctness (added/updated/removed/unchanged paths and stale symbol/import removal).
 - Secret exclusion and malicious repository instruction handling.
 
 Compare a keyword baseline against any later hybrid or embedding retrieval implementation. Publish raw results and methodology; do not invent a score.
