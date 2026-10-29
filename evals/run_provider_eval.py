@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import logging
+import math
 import os
 import platform
 import re
@@ -144,6 +145,7 @@ def score_case(question: dict[str, Any], response: dict[str, Any], root: Path) -
             "id": question["id"],
             "expected_fact": question.get("expected_fact"),
             "expected_fact_anchor": question.get("expected_fact_anchor"),
+            "expected_range": [start, end] if isinstance(start, int) and isinstance(end, int) else None,
             "expected_path_found": any(item.get("path") == expected_path for item in evidence),
             "source_lines_valid": any(item.get("path") == expected_path for item in valid_evidence),
             "expected_range_covered": range_covered,
@@ -349,6 +351,10 @@ def evaluate(root: Path) -> dict[str, Any]:
                     if negatives else None
                 ),
                 "latency_ms_median": round(sorted(durations)[len(durations) // 2], 2) if durations else None,
+            "latency_ms_p95": (
+                round(sorted(durations)[max(0, math.ceil(0.95 * len(durations)) - 1)], 2)
+                if durations else None
+            ),
             }
             passed = all(
                 x.get("expected_path_found", x.get("unsupported_question_abstained", False))
