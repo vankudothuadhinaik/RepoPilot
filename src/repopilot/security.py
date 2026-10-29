@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import fnmatch
 import os
 from pathlib import Path
 
@@ -30,13 +29,9 @@ def is_secret_path(path: Path) -> bool:
 
 
 def _read_ignore_file(path: Path) -> list[str]:
-    try:
-        return [
-            line.rstrip() for line in path.read_text(encoding="utf-8").splitlines()
-            if line.strip() and not line.lstrip().startswith("#")
-        ]
-    except (OSError, UnicodeError):
-        return []
+    """Read raw ignore lines without following a swapped or symlinked file."""
+    content = read_safe_text(path, root=path.parent)
+    return content.splitlines() if content is not None else []
 
 
 def _gitignore_patterns(root: Path) -> list[str]:
@@ -45,65 +40,63 @@ def _gitignore_patterns(root: Path) -> list[str]:
 
 
 def _matches_gitignore(root: Path, path: Path, patterns: list[str]) -> bool:
-    """Approximate gitignore matching while preserving ordered negation semantics.
+    """Apply ordered Git ignore rules from root and nested .gitignore files.
 
-    Root patterns are anchored to root when they contain a slash; basename patterns
-    apply at any depth. Nested .gitignore files are evaluated relative to their
-    containing directory. A negation cannot re-include a file beneath an excluded
-    parent directory, matching Git's traversal rule.
+    Parent directories are checked separately because a file cannot be re-included
+    when one of its parent directories remains ignored.
     """
-    rel = path.relative_to(root).as_posix()
-    components = Path(rel).parts
-    ignore_files = [(root, patterns)]
-    for index in range(1, len(components)):
-        directory = root.joinpath(*components[:index])
-        local = directory / ".gitignore"
-        if local.is_file():
-            ignore_files.append((directory, _read_ignore_file(local)))
+    from pathspec import GitIgnoreSpec
 
-    ignored = False
-    excluded_dirs: set[str] = set()
-    for base, entries in ignore_files:
-        candidate = path.relative_to(base).as_posix()
-        for raw in entries:
-            negated = raw.startswith("!")
-            pattern = raw[1:] if negated else raw
-            if not pattern:
-                continue
-            directory_only = pattern.endswith("/")
-            pattern = pattern.rstrip("/")
-            anchored = pattern.startswith("/")
-            pattern = pattern.lstrip("/")
-            if not pattern:
-                continue
-            has_slash = "/" in pattern
-            targets = [candidate]
-            if not has_slash and not anchored:
-                targets += [part for part in Path(candidate).parts]
-            matched = any(
-                fnmatch.fnmatchcase(target, pattern)
-                or (target == pattern and path.is_dir())
-                or (directory_only and target.startswith(pattern + "/"))
-                for target in targets
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        return True
+
+    parts = relative.parts
+    if not parts:
+        return False
+
+    ignore_files: list[tuple[Path, GitIgnoreSpec]] = [
+        (root, GitIgnoreSpec.from_lines(patterns))
+    ]
+    for depth in range(1, len(parts)):
+        directory = root.joinpath(*parts[:depth])
+        ignore_file = directory / ".gitignore"
+        if ignore_file.is_file() and not ignore_file.is_symlink():
+            ignore_files.append(
+                (directory, GitIgnoreSpec.from_lines(_read_ignore_file(ignore_file)))
             )
-            # A negated basename can re-include a file matched by a wildcard
-            # earlier in the same ignore file. Match the basename explicitly.
-            if negated and not has_slash:
-                matched = fnmatch.fnmatchcase(path.name, pattern)
-            if negated and has_slash:
-                matched = fnmatch.fnmatchcase(candidate, pattern)
-            if matched:
-                if negated:
-                    # Git cannot re-include a child while its parent is excluded.
-                    parent_rel = Path(candidate).parent.as_posix()
-                    if not any(parent_rel == item or parent_rel.startswith(item + "/") for item in excluded_dirs):
-                        ignored = False
-                else:
-                    ignored = True
-                    if directory_only or path.is_dir():
-                        excluded_dirs.add(candidate)
-    return ignored
 
+    for depth in range(1, len(parts) + 1):
+        prefix_path = root.joinpath(*parts[:depth])
+        prefix = Path(*parts[:depth]).as_posix()
+        is_directory = depth < len(parts) or prefix_path.is_dir()
+        if is_directory:
+            prefix += "/"
+
+        ignored = False
+        for base, spec in ignore_files:
+            if base == root:
+                candidate = prefix
+            else:
+                try:
+                    candidate = Path(prefix.rstrip("/")).relative_to(
+                        base.relative_to(root)
+                    ).as_posix()
+                except ValueError:
+                    continue
+                if is_directory:
+                    candidate += "/"
+
+            if candidate in {"", "."}:
+                continue
+            result = spec.check_file(candidate)
+            if result.include is not None:
+                ignored = result.include
+
+        if ignored:
+            return True
+    return False
 
 def should_ignore(root: Path, path: Path, patterns: list[str]) -> bool:
     try:
