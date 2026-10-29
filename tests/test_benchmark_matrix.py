@@ -1,4 +1,4 @@
-import pytest
+import argparse\n\nimport pytest
 
 from evals import benchmark_matrix
 
@@ -43,5 +43,5 @@ def test_run_matrix_requires_existing_repository_roots(tmp_path):
 
 def test_parse_source_revision_requires_name_and_sha():
     assert benchmark_matrix.parse_source_revision("repo=abc123") == ("repo", "abc123")
-    with pytest.raises(Exception):
+    with pytest.raises(argparse.ArgumentTypeError):
         benchmark_matrix.parse_source_revision("missing-sha")
