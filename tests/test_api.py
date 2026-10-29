@@ -51,3 +51,25 @@ def test_api_token_guard_protects_api_but_not_health(client, monkeypatch):
     assert client.get("/api/repos", headers={"Authorization": "Bearer wrong"}).status_code == 401
     response = client.get("/api/repos", headers={"Authorization": "Bearer test-secret-token"})
     assert response.status_code == 200
+
+
+
+def test_ask_empty_file_and_no_keyword_match_have_bounded_citations(client, fixture_repo, auth_headers):
+    (fixture_repo / "empty.py").write_text("", encoding="utf-8")
+    (fixture_repo / "unrelated.py").write_text(
+        "def unrelated_function():\n    return 'alpha beta gamma'\n", encoding="utf-8"
+    )
+    registered = client.post("/api/repos", json={"path": str(fixture_repo)}, headers=auth_headers)
+    repo_id = registered.json()["id"]
+
+    response = client.post(
+        f"/api/repos/{repo_id}/ask",
+        json={"question": "completely absent concept", "limit": 10},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    for citation in body["evidence"]:
+        assert citation["start_line"] >= 1
+        assert citation["end_line"] >= citation["start_line"]
+        assert len(citation["snippet"].splitlines()) <= 12
