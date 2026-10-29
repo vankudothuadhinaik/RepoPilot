@@ -139,22 +139,91 @@ def safe_repository_root(raw: str | Path) -> Path:
 
 
 def read_safe_text(path: Path, *, root: Path | None = None) -> str | None:
-    """Read bounded UTF-8 text; re-check symlink and root containment immediately before I/O."""
+    """Read bounded UTF-8 text without following symlinks during POSIX path traversal.
+
+    Directory-relative opens pin each path component to an already-open directory,
+    preventing a concurrent symlink swap from redirecting the read outside root.
+    Platforms without dir_fd/O_NOFOLLOW use repeated containment and identity checks.
+    """
+    import stat
+
     try:
-        if path.is_symlink() or is_secret_path(path):
+        if is_secret_path(path) or root is None:
             return None
-        resolved = path.resolve(strict=True)
-        if root is not None:
-            root_resolved = root.resolve(strict=True)
+        root_resolved = root.resolve(strict=True)
+        relative = path.relative_to(root)
+        if not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
+            return None
+        if path.is_symlink():
+            return None
+
+        nofollow = getattr(os, "O_NOFOLLOW", 0)
+        directory_flag = getattr(os, "O_DIRECTORY", 0)
+        supports_dir_fd = os.name == "posix" and bool(nofollow and directory_flag)
+        if supports_dir_fd:
+            root_fd = os.open(root_resolved, os.O_RDONLY | directory_flag)
+            parent_fd = root_fd
+            opened_fds = [root_fd]
+            try:
+                for component in relative.parts[:-1]:
+                    next_fd = os.open(
+                        component, os.O_RDONLY | directory_flag | nofollow, dir_fd=parent_fd
+                    )
+                    opened_fds.append(next_fd)
+                    parent_fd = next_fd
+                file_fd = os.open(relative.parts[-1], os.O_RDONLY | nofollow, dir_fd=parent_fd)
+                try:
+                    before = os.fstat(file_fd)
+                    if not stat.S_ISREG(before.st_mode) or before.st_size > MAX_FILE_BYTES:
+                        return None
+                    chunks: list[bytes] = []
+                    remaining = MAX_FILE_BYTES + 1
+                    while remaining:
+                        chunk = os.read(file_fd, min(65536, remaining))
+                        if not chunk:
+                            break
+                        chunks.append(chunk)
+                        remaining -= len(chunk)
+                    raw = b"".join(chunks)
+                    after = os.fstat(file_fd)
+                    current = os.stat(relative.parts[-1], dir_fd=parent_fd, follow_symlinks=False)
+                    identity_before = (
+                        before.st_dev, before.st_ino, before.st_size,
+                        before.st_mtime_ns, before.st_ctime_ns,
+                    )
+                    identity_after = (
+                        after.st_dev, after.st_ino, after.st_size,
+                        after.st_mtime_ns, after.st_ctime_ns,
+                    )
+                    identity_path = (
+                        current.st_dev, current.st_ino, current.st_size,
+                        current.st_mtime_ns, current.st_ctime_ns,
+                    )
+                    if identity_before != identity_after or identity_after != identity_path:
+                        return None
+                finally:
+                    os.close(file_fd)
+            finally:
+                for descriptor in reversed(opened_fds):
+                    os.close(descriptor)
+        else:
+            resolved = path.resolve(strict=True)
             if os.path.commonpath((str(root_resolved), str(resolved))) != str(root_resolved):
                 return None
-        stat_before = path.stat()
-        if stat_before.st_size > MAX_FILE_BYTES or not path.is_file():
-            return None
-        raw = path.read_bytes()
-        stat_after = path.stat()
-        if path.is_symlink() or stat_before.st_ino != stat_after.st_ino or stat_before.st_size != stat_after.st_size:
-            return None
+            before = path.stat()
+            if before.st_size > MAX_FILE_BYTES or not path.is_file():
+                return None
+            raw = path.read_bytes()
+            after = path.stat()
+            resolved_after = path.resolve(strict=True)
+            if (
+                os.path.commonpath((str(root_resolved), str(resolved_after))) != str(root_resolved)
+                or path.is_symlink()
+                or (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+                != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+            ):
+                return None
+
         if len(raw) > MAX_FILE_BYTES or b"\x00" in raw:
             return None
         return raw.decode("utf-8")
