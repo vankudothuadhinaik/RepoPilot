@@ -87,12 +87,10 @@ def _matches_gitignore(root: Path, path: Path, patterns: list[str]) -> bool:
                 continue
             # PathSpec.match_file evaluates the ordered patterns and respects
             # negations, directory patterns, anchoring, and case-sensitive matches.
-            if spec.match_file(candidate):
-                # MatchFile reports whether the final matching pattern includes
-                # the path. Inspect the last matching pattern to retain the state.
-                for pattern in spec.patterns:
-                    if pattern.match_file(candidate):
-                        ignored = not pattern.include
+            # Apply each matching pattern in order; the last matching rule wins.
+            for pattern in spec.patterns:
+                if pattern.match_file(candidate):
+                    ignored = not pattern.include
         if ignored:
             return True
     return False
