@@ -158,7 +158,7 @@ def evaluate(root: Path) -> dict[str, Any]:
                     scored = score_case(
                         question,
                         {"answer": "", "abstained": False, "evidence": [], "mode": "error"},
-                        root,
+                        corpus_root,
                     )
                     scored["evaluation_error"] = "api_http_error"
                     scored["http_status"] = response.status_code
@@ -190,7 +190,7 @@ def evaluate(root: Path) -> dict[str, Any]:
                 scored = score_case(
                     question,
                     {"answer": "", "abstained": False, "evidence": [], "mode": "error"},
-                    root,
+                    corpus_root,
                 )
                 scored["evaluation_error"] = error_code
                 results.append(scored)
@@ -257,7 +257,7 @@ def evaluate(root: Path) -> dict[str, Any]:
             provider_host = urlsplit(base_url).hostname
         except ValueError:
             provider_host = None
-        return {
+        report = {
             "status": "completed", "mode": "live-provider",
             "provider": {
                 "base_url_host": provider_host,
@@ -276,7 +276,7 @@ def evaluate(root: Path) -> dict[str, Any]:
                 "Latency includes local indexing/API overhead as well as provider latency."
             ]
         }
-    # Restore caller environment even if a provider request fails.
+    # Restore the caller's environment after a successful evaluation.
     if previous_token is None:
         os.environ.pop("REP_PILOT_API_TOKEN", None)
     else:
@@ -285,6 +285,8 @@ def evaluate(root: Path) -> dict[str, Any]:
         os.environ.pop("REP_PILOT_DATA_DIR", None)
     else:
         os.environ["REP_PILOT_DATA_DIR"] = previous_data_dir
+    return report
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
