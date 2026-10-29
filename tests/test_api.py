@@ -15,10 +15,23 @@ def test_health_and_repository_workflow(client, fixture_repo, auth_headers):
     ).status_code == 201
 
 
-def test_api_requires_valid_bearer_token(client, auth_headers):
-    assert client.get("/api/repos").status_code == 401
-    assert client.get("/api/repos", headers={"Authorization": "Bearer wrong-token"}).status_code == 401
-    assert client.get("/api/repos", headers=auth_headers).status_code == 200
+def test_ask_returns_line_addressable_evidence(client, fixture_repo, auth_headers):
+    response = client.post("/api/repos", json={"path": str(fixture_repo)}, headers=auth_headers)
+    repo_id = response.json()["id"]
+
+    ask = client.post(
+        f"/api/repos/{repo_id}/ask",
+        json={"question": "greet", "limit": 5},
+        headers=auth_headers,
+    )
+
+    assert ask.status_code == 200
+    body = ask.json()
+    assert body["abstained"] is False
+    citation = next(item for item in body["evidence"] if item["path"] == "app.py")
+    assert citation["start_line"] <= 1 <= citation["end_line"]
+    assert "1: def greet" in citation["snippet"]
+    assert citation["sha256"]
 
 
 def test_missing_repository_is_404(client, auth_headers):
@@ -28,3 +41,13 @@ def test_missing_repository_is_404(client, auth_headers):
 def test_invalid_repository_path_is_400(client, tmp_path, auth_headers):
     response = client.post("/api/repos", json={"path": str(tmp_path)}, headers=auth_headers)
     assert response.status_code == 400
+
+
+
+def test_api_token_guard_protects_api_but_not_health(client, monkeypatch):
+    monkeypatch.setenv("REP_PILOT_API_TOKEN", "test-secret-token")
+    assert client.get("/health/live").status_code == 200
+    assert client.get("/api/repos").status_code == 401
+    assert client.get("/api/repos", headers={"Authorization": "Bearer wrong"}).status_code == 401
+    response = client.get("/api/repos", headers={"Authorization": "Bearer test-secret-token"})
+    assert response.status_code == 200

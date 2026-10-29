@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from repopilot.indexer import index_repository
+from repopilot.llm import generate_grounded_answer
 from repopilot.store import Store
 
 app = FastAPI(
@@ -20,25 +21,21 @@ app = FastAPI(
 )
 store = Store()
 
-
-def _api_token() -> str | None:
-    token = os.getenv("REP_PILOT_API_TOKEN")
-    return token if token else None
-
-
 @app.middleware("http")
 async def require_api_token(request: Request, call_next: Any) -> Any:
+    """Require a bearer token for every API route."""
+    expected = os.getenv("REP_PILOT_API_TOKEN", "").strip()
     if request.url.path == "/api" or request.url.path.startswith("/api/"):
-        configured = _api_token()
         authorization = request.headers.get("authorization", "")
         scheme, _, supplied = authorization.partition(" ")
-        if not configured or scheme.lower() != "bearer" or not supplied or not hmac.compare_digest(supplied, configured):
+        if not expected or scheme.lower() != "bearer" or not supplied or not hmac.compare_digest(supplied, expected):
             return JSONResponse(
                 status_code=401,
-                content={"detail": "Invalid or missing bearer token"},
+                content={"detail": "Missing or invalid bearer token"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
     return await call_next(request)
+
 
 
 class RegisterRepository(BaseModel):
@@ -88,10 +85,14 @@ def list_repositories() -> list[dict[str, Any]]:
 @app.post("/api/repos", status_code=201)
 def register_repository(payload: RegisterRepository) -> dict[str, Any]:
     try:
-        indexed = index_repository(payload.path)
+        indexed = index_repository(
+            payload.path,
+            store.file_hashes(payload.path),
+            store.parser_version_for_root(payload.path),
+        )
         repo = store.index(indexed)
         repo["errors"] = json.loads(repo.pop("errors_json", "[]"))
-        repo["coverage"] = indexed["coverage"]
+        repo["coverage"] = {**indexed["coverage"], "symbols_found": repo["symbol_count"]}
         return repo
     except (ValueError, OSError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -115,7 +116,13 @@ def repository_detail(repo_id: str) -> dict[str, Any]:
 def reindex_repository(repo_id: str) -> dict[str, Any]:
     repo = require_repo(repo_id)
     try:
-        result = store.index(index_repository(repo["root_path"]))
+        indexed = index_repository(
+            repo["root_path"],
+            store.file_hashes(repo["root_path"]),
+            repo.get("parser_version"),
+        )
+        result = store.index(indexed)
+        result["coverage"] = {**indexed["coverage"], "symbols_found": result["symbol_count"]}
         result["errors"] = json.loads(result.pop("errors_json", "[]"))
         return result
     except (ValueError, OSError) as exc:
@@ -143,16 +150,44 @@ def ask_repository(repo_id: str, payload: AskRequest) -> dict[str, Any]:
         file_data = store.get_file(repo_id, item["path"])
         if not file_data:
             continue
-        snippet = item.get("snippet", "")
+        lines = file_data["content"].splitlines()
+        query_terms = [term.casefold().strip(".,:;()[]{}<>\\\"'") for term in payload.question.split()]
+        query_terms = [term for term in query_terms if term]
+        matching_lines = [
+            index for index, line in enumerate(lines, start=1)
+            if any(term in line.casefold() for term in query_terms)
+        ]
+        start_line = matching_lines[0] if matching_lines else 1
+        end_line = matching_lines[-1] if matching_lines else min(len(lines), 1)
+        if end_line - start_line > 7:
+            end_line = start_line + 7
+        context_start = max(1, start_line - 2)
+        context_end = min(len(lines), end_line + 2)
+        snippet = "\n".join(
+            f"{line_number}: {lines[line_number - 1]}"
+            for line_number in range(context_start, context_end + 1)
+        )
         evidence.append({
             "path": item["path"], "language": item["language"],
+            "start_line": context_start, "end_line": context_end,
             "snippet": snippet, "sha256": file_data["sha256"],
             "indexed_commit": require_repo(repo_id).get("indexed_commit"),
         })
-    # No model is called here. The baseline deliberately reports retrieved evidence rather than inventing an LLM answer.
+    generated_answer = generate_grounded_answer(payload.question, evidence)
+    if generated_answer:
+        answer = generated_answer
+        mode = "llm"
+    else:
+        answer = (
+            "Retrieved repository evidence is shown below. Configure OPENAI_API_KEY "
+            "and an OpenAI-compatible model endpoint for cited natural-language answers."
+        )
+        mode = "retrieval_only"
     return {
-        "answer": "Retrieved repository evidence is shown below. This local baseline does not generate a semantic explanation; inspect the cited snippets before drawing conclusions.",
-        "evidence": evidence, "abstained": len(evidence) == 0,
+        "answer": answer,
+        "evidence": evidence,
+        "abstained": len(evidence) == 0,
+        "mode": mode,
     }
 
 

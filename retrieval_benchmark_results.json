@@ -1,0 +1,437 @@
+{
+  "retrieval_benchmark": {
+    "case_count": 50,
+    "metrics": {
+      "abstention_accuracy": 1.0,
+      "mrr_at_10": 1.0,
+      "negative_queries": 5,
+      "positive_queries": 45,
+      "recall_at_10": 1.0,
+      "recall_at_5": 1.0
+    },
+    "passed": true,
+    "repository_count": 3,
+    "results": [
+      {
+        "expected_path": "src/auth.py",
+        "id": "retrieval-001",
+        "passed": true,
+        "query": "bearer credential",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/auth.py",
+        "id": "retrieval-002",
+        "passed": true,
+        "query": "rotation token",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/auth.py",
+        "id": "retrieval-003",
+        "passed": true,
+        "query": "credential rotation",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/database.py",
+        "id": "retrieval-004",
+        "passed": true,
+        "query": "sqlite checkpoint",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/database.py",
+        "id": "retrieval-005",
+        "passed": true,
+        "query": "transaction rollback",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/database.py",
+        "id": "retrieval-006",
+        "passed": true,
+        "query": "wal checkpoint",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/indexer.py",
+        "id": "retrieval-007",
+        "passed": true,
+        "query": "contenthash parserversion",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/indexer.py",
+        "id": "retrieval-008",
+        "passed": true,
+        "query": "incremental symbols",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/indexer.py",
+        "id": "retrieval-009",
+        "passed": true,
+        "query": "parserversion qualified",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/search.py",
+        "id": "retrieval-010",
+        "passed": true,
+        "query": "fts5 bm25",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/search.py",
+        "id": "retrieval-011",
+        "passed": true,
+        "query": "ranking snippet",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/search.py",
+        "id": "retrieval-012",
+        "passed": true,
+        "query": "tokenizer retrieval",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/llm.py",
+        "id": "retrieval-013",
+        "passed": true,
+        "query": "openai grounding",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/llm.py",
+        "id": "retrieval-014",
+        "passed": true,
+        "query": "citation provider",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/llm.py",
+        "id": "retrieval-015",
+        "passed": true,
+        "query": "validates abstains",
+        "rank": 1,
+        "repo": "backend"
+      },
+      {
+        "expected_path": "src/dashboard.tsx",
+        "id": "retrieval-016",
+        "passed": true,
+        "query": "selector reindex",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "src/dashboard.tsx",
+        "id": "retrieval-017",
+        "passed": true,
+        "query": "delta unchanged",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "src/dashboard.tsx",
+        "id": "retrieval-018",
+        "passed": true,
+        "query": "added removed",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "src/client.ts",
+        "id": "retrieval-019",
+        "passed": true,
+        "query": "fetch timeout",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "src/client.ts",
+        "id": "retrieval-020",
+        "passed": true,
+        "query": "retry response",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "src/client.ts",
+        "id": "retrieval-021",
+        "passed": true,
+        "query": "transport handling",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "src/styles.css",
+        "id": "retrieval-022",
+        "passed": true,
+        "query": "responsive palette",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "src/styles.css",
+        "id": "retrieval-023",
+        "passed": true,
+        "query": "dark spacing",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "src/styles.css",
+        "id": "retrieval-024",
+        "passed": true,
+        "query": "typography mobile",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "package.json",
+        "id": "retrieval-025",
+        "passed": true,
+        "query": "vite typescript",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "package.json",
+        "id": "retrieval-026",
+        "passed": true,
+        "query": "react dependency",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "package.json",
+        "id": "retrieval-027",
+        "passed": true,
+        "query": "frontend package",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "src/evidence.tsx",
+        "id": "retrieval-028",
+        "passed": true,
+        "query": "line citation",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "src/evidence.tsx",
+        "id": "retrieval-029",
+        "passed": true,
+        "query": "sha256 indexed",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "src/evidence.tsx",
+        "id": "retrieval-030",
+        "passed": true,
+        "query": "provenance viewer",
+        "rank": 1,
+        "repo": "web"
+      },
+      {
+        "expected_path": "Dockerfile",
+        "id": "retrieval-031",
+        "passed": true,
+        "query": "container runtime",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": "Dockerfile",
+        "id": "retrieval-032",
+        "passed": true,
+        "query": "image python",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": "Dockerfile",
+        "id": "retrieval-033",
+        "passed": true,
+        "query": "nonroot health",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": "compose.yaml",
+        "id": "retrieval-034",
+        "passed": true,
+        "query": "service volume",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": "compose.yaml",
+        "id": "retrieval-035",
+        "passed": true,
+        "query": "network healthcheck",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": "compose.yaml",
+        "id": "retrieval-036",
+        "passed": true,
+        "query": "environment orchestration",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": "ci.yml",
+        "id": "retrieval-037",
+        "passed": true,
+        "query": "pytest ruff",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": "ci.yml",
+        "id": "retrieval-038",
+        "passed": true,
+        "query": "coverage compile",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": "ci.yml",
+        "id": "retrieval-039",
+        "passed": true,
+        "query": "evaluation artifact",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": "codeql.yml",
+        "id": "retrieval-040",
+        "passed": true,
+        "query": "codeql static",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": "codeql.yml",
+        "id": "retrieval-041",
+        "passed": true,
+        "query": "analysis security",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": "codeql.yml",
+        "id": "retrieval-042",
+        "passed": true,
+        "query": "SARIF scanning",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": "SECURITY.md",
+        "id": "retrieval-043",
+        "passed": true,
+        "query": "path traversal",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": "SECURITY.md",
+        "id": "retrieval-044",
+        "passed": true,
+        "query": "symlink redaction",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": "SECURITY.md",
+        "id": "retrieval-045",
+        "passed": true,
+        "query": "secret exclusion",
+        "rank": 1,
+        "repo": "infra"
+      },
+      {
+        "expected_path": null,
+        "id": "retrieval-046",
+        "passed": true,
+        "query": "quasar unobtanium",
+        "rank": null,
+        "repo": "backend"
+      },
+      {
+        "expected_path": null,
+        "id": "retrieval-047",
+        "passed": true,
+        "query": "phantom nebula",
+        "rank": null,
+        "repo": "web"
+      },
+      {
+        "expected_path": null,
+        "id": "retrieval-048",
+        "passed": true,
+        "query": "zircon impossibletoken",
+        "rank": null,
+        "repo": "infra"
+      },
+      {
+        "expected_path": null,
+        "id": "retrieval-049",
+        "passed": true,
+        "query": "unlisted moonbase",
+        "rank": null,
+        "repo": "backend"
+      },
+      {
+        "expected_path": null,
+        "id": "retrieval-050",
+        "passed": true,
+        "query": "absent starship",
+        "rank": null,
+        "repo": "web"
+      }
+    ],
+    "scope": "Fifteen hand-authored synthetic source files across three repositories; 45 targeted retrieval queries and five negative queries. Measures lexical retrieval behavior only, not semantic answer quality or real-world generalization.",
+    "title": "RepoPilot synthetic retrieval benchmark"
+  },
+  "smoke": {
+    "passed": 3,
+    "results": [
+      {
+        "id": "smoke-001",
+        "passed": true
+      },
+      {
+        "id": "smoke-002",
+        "passed": true
+      },
+      {
+        "id": "smoke-003",
+        "passed": true
+      }
+    ],
+    "total": 3
+  }
+}

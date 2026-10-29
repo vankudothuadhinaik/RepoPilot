@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from repopilot.config import database_path
+from repopilot.indexer import PARSER_VERSION
 
 
 def now() -> str:
@@ -41,7 +42,8 @@ class Store:
                     id TEXT PRIMARY KEY, name TEXT NOT NULL, root_path TEXT NOT NULL UNIQUE,
                     branch TEXT, indexed_commit TEXT, status TEXT NOT NULL DEFAULT 'indexed',
                     indexed_at TEXT NOT NULL, file_count INTEGER NOT NULL DEFAULT 0,
-                    symbol_count INTEGER NOT NULL DEFAULT 0, errors_json TEXT NOT NULL DEFAULT '[]'
+                    symbol_count INTEGER NOT NULL DEFAULT 0, errors_json TEXT NOT NULL DEFAULT '[]',
+                    parser_version TEXT NOT NULL DEFAULT '1'
                 );
                 CREATE TABLE IF NOT EXISTS files (
                     repository_id TEXT NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
@@ -77,6 +79,13 @@ class Store:
                     target TEXT, outcome TEXT NOT NULL, created_at TEXT NOT NULL, details_json TEXT NOT NULL
                 );
             """)
+            repository_columns = {
+                row["name"] for row in db.execute("PRAGMA table_info(repositories)").fetchall()
+            }
+            if "parser_version" not in repository_columns:
+                db.execute(
+                    "ALTER TABLE repositories ADD COLUMN parser_version TEXT NOT NULL DEFAULT '1'"
+                )
 
     def audit(self, repository_id: str | None, action: str, target: str | None,
               outcome: str, details: dict[str, Any] | None = None) -> None:
@@ -88,41 +97,152 @@ class Store:
             )
 
     def index(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Persist a repository snapshot while only rewriting changed file records.
+
+        The indexer currently scans the working tree to calculate hashes. This method
+        avoids replacing unchanged SQLite/FTS rows and only rebuilds symbols/imports
+        for files whose content changed, plus removing files no longer present.
+        """
         with self.connect() as db:
-            existing = db.execute("SELECT id FROM repositories WHERE root_path=?", (data["root"],)).fetchone()
+            existing = db.execute(
+                "SELECT id FROM repositories WHERE root_path=?", (data["root"],)
+            ).fetchone()
             repo_id = existing["id"] if existing else str(uuid.uuid4())
-            db.execute("""
+            db.execute(
+                """
                 INSERT INTO repositories(id,name,root_path,branch,indexed_commit,status,indexed_at,
-                    file_count,symbol_count,errors_json)
-                VALUES(?,?,?,?,?,'indexed',?,?,?,?)
+                    file_count,symbol_count,errors_json,parser_version)
+                VALUES(?,?,?,?,?,'indexed',?,?,?,?,?)
                 ON CONFLICT(root_path) DO UPDATE SET
                     name=excluded.name, branch=excluded.branch, indexed_commit=excluded.indexed_commit,
                     status='indexed', indexed_at=excluded.indexed_at, file_count=excluded.file_count,
-                    symbol_count=excluded.symbol_count, errors_json=excluded.errors_json
-            """, (repo_id, data["name"], data["root"], data["branch"], data["commit"], now(),
-                  len(data["files"]), len(data["symbols"]), json.dumps(data["errors"])))
-            repo_id = db.execute("SELECT id FROM repositories WHERE root_path=?", (data["root"],)).fetchone()["id"]
-            db.execute("DELETE FROM files WHERE repository_id=?", (repo_id,))
-            db.execute("DELETE FROM file_search WHERE repository_id=?", (repo_id,))
-            db.execute("DELETE FROM symbols WHERE repository_id=?", (repo_id,))
-            db.execute("DELETE FROM relationships WHERE repository_id=?", (repo_id,))
-            for item in data["files"]:
-                db.execute("INSERT INTO files VALUES (?,?,?,?,?,?)",
-                    (repo_id, item["path"], item["language"], item["content"], item["sha256"], item["size_bytes"]))
-                db.execute("INSERT INTO file_search VALUES (?,?,?,?)",
-                    (repo_id, item["path"], item["language"], item["content"]))
-            for item in data["symbols"]:
-                db.execute("INSERT INTO symbols VALUES (?,?,?,?,?,?,?,?)",
-                    (repo_id, item["name"], item["qualified_name"], item["kind"], item["path"],
-                     item["start_line"], item["end_line"], item["signature"]))
-            for item in data["imports"]:
-                db.execute("INSERT INTO relationships VALUES (?,?,?,?,?)",
-                    (repo_id, item["source"], item["target"], item["kind"], 0.7))
-            db.execute("INSERT INTO audit_events VALUES (?,?,?,?,?,?,?)",
-                (str(uuid.uuid4()), repo_id, "index_repository", data["root"], "success", now(),
-                 json.dumps({"files": len(data["files"]), "symbols": len(data["symbols"])})))
-            row = db.execute("SELECT * FROM repositories WHERE id=?", (repo_id,)).fetchone()
-            return dict(row)
+                    symbol_count=excluded.symbol_count, errors_json=excluded.errors_json,
+                    parser_version=excluded.parser_version
+                """,
+                (
+                    repo_id, data["name"], data["root"], data["branch"], data["commit"], now(),
+                    len(data["files"]), len(data["symbols"]), json.dumps(data["errors"]),
+                    data.get("parser_version", PARSER_VERSION),
+                ),
+            )
+            repo_id = db.execute(
+                "SELECT id FROM repositories WHERE root_path=?", (data["root"],)
+            ).fetchone()["id"]
+
+            incoming = {item["path"]: item for item in data["files"]}
+            current_rows = db.execute(
+                "SELECT path, sha256 FROM files WHERE repository_id=?", (repo_id,)
+            ).fetchall()
+            current = {row["path"]: row["sha256"] for row in current_rows}
+            removed = set(current) - set(incoming)
+            changed = {
+                path for path, item in incoming.items()
+                if current.get(path) != item["sha256"]
+            }
+
+            # Delete removed files and all derived rows tied to those paths.
+            for path in sorted(removed):
+                db.execute("DELETE FROM file_search WHERE repository_id=? AND path=?", (repo_id, path))
+                db.execute("DELETE FROM files WHERE repository_id=? AND path=?", (repo_id, path))
+                db.execute("DELETE FROM symbols WHERE repository_id=? AND path=?", (repo_id, path))
+                db.execute("DELETE FROM relationships WHERE repository_id=? AND source=?", (repo_id, path))
+
+            # Rewrite only changed/new file bodies and their derived indexes.
+            symbols_by_path: dict[str, list[dict[str, Any]]] = {}
+            for symbol in data["symbols"]:
+                symbols_by_path.setdefault(symbol["path"], []).append(symbol)
+            imports_by_path: dict[str, list[dict[str, str]]] = {}
+            for relation in data["imports"]:
+                imports_by_path.setdefault(relation["source"], []).append(relation)
+
+            for path in sorted(changed):
+                item = incoming[path]
+                db.execute("DELETE FROM file_search WHERE repository_id=? AND path=?", (repo_id, path))
+                db.execute("DELETE FROM files WHERE repository_id=? AND path=?", (repo_id, path))
+                db.execute("DELETE FROM symbols WHERE repository_id=? AND path=?", (repo_id, path))
+                db.execute("DELETE FROM relationships WHERE repository_id=? AND source=?", (repo_id, path))
+                db.execute(
+                    "INSERT INTO files VALUES (?,?,?,?,?,?)",
+                    (repo_id, path, item["language"], item["content"], item["sha256"], item["size_bytes"]),
+                )
+                db.execute(
+                    "INSERT INTO file_search VALUES (?,?,?,?)",
+                    (repo_id, path, item["language"], item["content"]),
+                )
+                for symbol in symbols_by_path.get(path, []):
+                    db.execute(
+                        "INSERT INTO symbols VALUES (?,?,?,?,?,?,?,?)",
+                        (
+                            repo_id, symbol["name"], symbol["qualified_name"], symbol["kind"],
+                            symbol["path"], symbol["start_line"], symbol["end_line"], symbol["signature"],
+                        ),
+                    )
+                for relation in imports_by_path.get(path, []):
+                    db.execute(
+                        "INSERT INTO relationships VALUES (?,?,?,?,?)",
+                        (repo_id, relation["source"], relation["target"], relation["kind"], 0.7),
+                    )
+
+            added = set(incoming) - set(current)
+            updated = changed - added
+            delta = {
+                "added": len(added),
+                "updated": len(updated),
+                "removed": len(removed),
+                "unchanged": len(incoming) - len(changed),
+                "files_scanned": len(incoming),
+            }
+            timestamp = now()
+            db.execute(
+                "INSERT INTO audit_events VALUES (?,?,?,?,?,?,?)",
+                (
+                    str(uuid.uuid4()), repo_id, "index_repository", data["root"], "success",
+                    timestamp,
+                    json.dumps({
+                        "files": len(incoming),
+                        "changed": len(changed),
+                        "added": len(added),
+                        "updated": len(updated),
+                        "removed": len(removed),
+                        "unchanged": len(incoming) - len(changed),
+                        "symbols_parsed": len(data["symbols"]),
+                    }),
+                ),
+            )
+            symbol_count = db.execute(
+                "SELECT COUNT(*) AS count FROM symbols WHERE repository_id=?", (repo_id,)
+            ).fetchone()["count"]
+            db.execute(
+                "UPDATE repositories SET file_count=?, symbol_count=? WHERE id=?",
+                (len(incoming), symbol_count, repo_id),
+            )
+            row = dict(db.execute("SELECT * FROM repositories WHERE id=?", (repo_id,)).fetchone())
+            row["index_delta"] = delta
+            return row
+
+
+    def parser_version_for_root(self, root_path: str | Path) -> str | None:
+        """Return the parser version associated with an indexed repository root."""
+        canonical_root = str(Path(root_path).expanduser().resolve())
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT parser_version FROM repositories WHERE root_path=?", (canonical_root,)
+            ).fetchone()
+            return row["parser_version"] if row else None
+
+    def file_hashes(self, root_path: str | Path) -> dict[str, str]:
+        """Return indexed content hashes for a repository root, if registered."""
+        canonical_root = str(Path(root_path).expanduser().resolve())
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT id FROM repositories WHERE root_path=?", (canonical_root,)
+            ).fetchone()
+            if not row:
+                return {}
+            rows = db.execute(
+                "SELECT path, sha256 FROM files WHERE repository_id=?", (row["id"],)
+            ).fetchall()
+            return {item["path"]: item["sha256"] for item in rows}
 
     def list_repositories(self) -> list[dict[str, Any]]:
         with self.connect() as db:
@@ -139,45 +259,55 @@ class Store:
         if not query:
             return []
         limit = max(1, min(limit, 50))
+        prefix = path_prefix.strip("/") if path_prefix else None
+        if prefix is not None and (not prefix or "\\" in prefix or ".." in prefix.split("/")):
+            return []
         with self.connect() as db:
             # FTS syntax is user-controlled; quote tokens so punctuation does not become operators.
             tokens = [part.replace('"', '""') for part in query.split() if part]
             fts_query = " AND ".join(f'"{token}"' for token in tokens)
+            clauses = ["repository_id=?", "file_search MATCH ?"]
+            params: list[Any] = [repo_id, fts_query]
+            if language:
+                clauses.append("language=?")
+                params.append(language)
+            if prefix:
+                clauses.append("(path=? OR substr(path,1,length(?)+1)=? || '/')")
+                params.extend([prefix, prefix, prefix])
+            sql = f"""
+                SELECT path, language, snippet(file_search, 3, '[', ']', ' … ', 12) AS snippet,
+                       bm25(file_search) AS rank
+                FROM file_search WHERE {" AND ".join(clauses)}
+                ORDER BY rank LIMIT ?
+            """
+            params.append(limit)
             try:
-                rows = db.execute("""
-                    SELECT path, language, snippet(file_search, 3, '[', ']', ' … ', 12) AS snippet,
-                           bm25(file_search) AS rank
-                    FROM file_search WHERE repository_id=? AND file_search MATCH ?
-                    ORDER BY rank LIMIT ?
-                """, (repo_id, fts_query, limit * 3)).fetchall()
+                rows = db.execute(sql, params).fetchall()
             except sqlite3.OperationalError:
-                return self._fallback_search(db, repo_id, query, limit, language, path_prefix)
-            result = []
-            for row in rows:
-                if language and row["language"] != language:
-                    continue
-                if path_prefix and not row["path"].startswith(path_prefix):
-                    continue
-                result.append({**dict(row), "rank": float(row["rank"])})
-                if len(result) >= limit:
-                    break
-            return result
+                return self._fallback_search(db, repo_id, query, limit, language, prefix)
+            return [{**dict(row), "rank": float(row["rank"])} for row in rows]
 
     def _fallback_search(self, db: sqlite3.Connection, repo_id: str, query: str, limit: int,
                          language: str | None, path_prefix: str | None) -> list[dict[str, Any]]:
-        sql = "SELECT path,language,content FROM files WHERE repository_id=?"
-        rows = db.execute(sql, (repo_id,)).fetchall()
+        rows = db.execute(
+            "SELECT path,language,content FROM files WHERE repository_id=?", (repo_id,)
+        ).fetchall()
         result = []
         terms = query.casefold().split()
         for row in rows:
+            path = row["path"]
             if language and row["language"] != language:
                 continue
-            if path_prefix and not row["path"].startswith(path_prefix):
+            if path_prefix and not (
+                path == path_prefix or path.startswith(path_prefix + "/")
+            ):
                 continue
             content = row["content"]
             if all(term in content.casefold() for term in terms):
-                result.append({"path": row["path"], "language": row["language"],
-                               "snippet": content[:500], "rank": 0.0})
+                result.append({
+                    "path": path, "language": row["language"],
+                    "snippet": content[:500], "rank": 0.0,
+                })
             if len(result) >= limit:
                 break
         return result
@@ -207,7 +337,7 @@ class Store:
             rows = db.execute("SELECT source,target,kind,confidence FROM relationships WHERE repository_id=? LIMIT ?",
                               (repo_id, max(1, min(limit, 500)))).fetchall()
             return {"edges": [dict(row) for row in rows],
-                    "note": "Python imports are extracted statically; import targets are not guaranteed to resolve."}
+                    "note": "Static imports/includes are extracted for supported languages; edges are heuristic and targets are not guaranteed to resolve."}
 
     def create_memory(self, repo_id: str, kind: str, summary: str, evidence: list[str],
                       status: str = "proposed") -> dict[str, Any]:

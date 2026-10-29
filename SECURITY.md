@@ -14,7 +14,8 @@ Do not publish exploit details in a public issue. Contact the repository owner p
 - Common secret files, generated folders, binaries, symlinks, and oversized files are excluded by default.
 - Repository text is treated as data, not trusted instructions.
 - This MVP does not execute shell commands or apply code patches.
-- The `/api/*` routes require a bearer token supplied through `REP_PILOT_API_TOKEN`; `/health/live` and `/health/ready` remain public for local monitoring. Bind the service to loopback and do not expose it to the public internet without authorization, rate limits, and a reviewed deployment design.
+- The `/api/*` routes require a shared bearer token via `REP_PILOT_API_TOKEN`; the CLI refuses non-loopback binds unless the token is configured. Docker startup requires the token and Compose binds the published port to host loopback.
+- The token is a single shared secret, not user identity, role-based authorization, or tenant isolation. Rate limiting, TLS, and a reviewed hosted deployment design remain outstanding.
 
 ## Limitations
 

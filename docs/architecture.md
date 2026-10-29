@@ -5,7 +5,7 @@ RepoPilot starts as a local-first modular monolith.
 ```mermaid
 flowchart TD
     CLI[CLI] --> Core[Indexer and API]
-    UI[Web UI - Vite starter] --> Core
+    UI[Web UI - Vite dashboard] --> Core
     MCP[MCP server - optional extra] --> Store[(SQLite + FTS5)]
     Core --> Indexer[Safe file discovery and Python AST parser]
     Indexer --> Store
@@ -19,6 +19,8 @@ flowchart TD
 
 - FastAPI routes and a command-line entry point.
 - Bearer-token authentication for `/api/*`, with public liveness and readiness endpoints.
+- React/Vite dashboard for local repository registration, full-text search, and evidence retrieval.
+- `/ask` evidence citations include a source path, line range, content hash, and indexed commit.
 - SQLite persistence, FTS5 full-text search, symbol records, import edges, memory CRUD.
 - Python AST symbol extraction and Python import extraction.
 - Indexes are replaced atomically at the database transaction level when re-indexing.
@@ -28,6 +30,6 @@ flowchart TD
 
 - Semantic embeddings and model-generated explanations are not implemented.
 - Symbol extraction is currently Python-specific.
-- The graph currently records static Python imports, not a complete call graph.
+- The graph records conservative static import/include/use edges for Python, JavaScript/TypeScript, Java/Kotlin, Go, C/C++, Rust, and C#. These edges are heuristic and do not constitute a complete compiler-resolved dependency graph or call graph.
 - Indexing is synchronous and intended for local repositories of modest size.
 - Multi-user tenancy, background jobs, rate limiting, and patch execution are not implemented.
