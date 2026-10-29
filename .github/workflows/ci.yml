@@ -40,14 +40,14 @@ jobs:
       - run: PYTHONPATH=src python evals/run_eval.py
       - run: PYTHONPATH=src python evals/run_ground_truth.py --root .
       - name: Live provider evaluation (optional)
-        if: ${{ env.OPENAI_API_KEY != '' }}
+        if: ${{ env.OPENAI_API_KEY != '' && matrix.python-version == '3.11' }}
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL || 'https://api.openai.com/v1' }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4.1-mini' }}
         run: PYTHONPATH=src python evals/run_provider_eval.py --root . --output provider-evaluation.json
       - name: Publish live provider evaluation report
-        if: ${{ always() && env.OPENAI_API_KEY != '' }}
+        if: ${{ always() && env.OPENAI_API_KEY != '' && matrix.python-version == '3.11' }}
         uses: actions/upload-artifact@v7
         with:
           name: repopilot-live-provider-evaluation-${{ github.sha }}-py${{ matrix.python-version }}
