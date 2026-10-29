@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from typing import Any
 from urllib.parse import urlsplit
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 _CITATION = re.compile(r"\[\[([^\]]+)\]\]")
 MAX_RESPONSE_BYTES = 256_000
 MAX_EVIDENCE_BYTES = 24_000
 MAX_ANSWER_CHARS = 12_000
+_LOGGER = logging.getLogger(__name__)
 
 
 def _provider_url(raw: str) -> str | None:
@@ -37,6 +40,7 @@ def generate_grounded_answer(question: str, evidence: list[dict[str, Any]]) -> s
     base_url = _provider_url(os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").strip())
     model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip()
     if base_url is None or not model or len(model) > 200 or len(api_key) > 4096:
+        _LOGGER.warning('Grounded answer skipped: invalid provider configuration.')
         return None
 
     allowed_paths = {str(item.get("path", "")) for item in evidence if item.get("path")}
@@ -93,13 +97,25 @@ def generate_grounded_answer(question: str, evidence: list[dict[str, Any]]) -> s
         if not isinstance(content, str):
             return None
         answer = content.strip()
+    except HTTPError as exc:
+        _LOGGER.warning('Grounded answer provider returned HTTP status %s.', exc.code)
+        return None
+    except URLError as exc:
+        _LOGGER.warning('Grounded answer provider connection failed (%s).', type(exc.reason).__name__)
+        return None
+    except TimeoutError:
+        _LOGGER.warning('Grounded answer provider timed out.')
+        return None
     except (OSError, ValueError, KeyError, IndexError, TypeError, AttributeError):
+        _LOGGER.warning('Grounded answer provider response could not be parsed.')
         return None
 
     if not answer or len(answer) > MAX_ANSWER_CHARS:
+        _LOGGER.warning('Grounded answer rejected: empty or oversized response.')
         return None
     citations = _CITATION.findall(answer)
     if not citations or not set(citations).issubset(allowed_paths):
+        _LOGGER.warning('Grounded answer rejected: missing citations or citations outside supplied evidence.')
         return None
     # Reject malformed/unclosed citation tokens and citation-like paths that are not
     # present in the exact supplied evidence allowlist.
@@ -108,5 +124,6 @@ def generate_grounded_answer(question: str, evidence: list[dict[str, Any]]) -> s
     # Require a citation on every sentence/line, not merely somewhere in the answer.
     claim_units = [unit.strip() for unit in re.split(r"[\r\n]+|(?<=[.!?])\s+", answer) if unit.strip()]
     if any(not _CITATION.search(unit) for unit in claim_units):
+        _LOGGER.warning('Grounded answer rejected: one or more claim units lack citations.')
         return None
     return answer
