@@ -120,6 +120,7 @@ def generate_grounded_answer(question: str, evidence: list[dict[str, Any]]) -> s
     # Reject malformed/unclosed citation tokens and citation-like paths that are not
     # present in the exact supplied evidence allowlist.
     if answer.count("[[") != len(citations) or answer.count("]]") != len(citations):
+        _LOGGER.warning("Grounded answer rejected: malformed citation token.")
         return None
     # Require a citation on every sentence/line, not merely somewhere in the answer.
     claim_units = [unit.strip() for unit in re.split(r"[\r\n]+|(?<=[.!?])\s+", answer) if unit.strip()]
