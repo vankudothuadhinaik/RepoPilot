@@ -45,6 +45,8 @@ def evaluate(root: Path) -> dict[str, Any]:
             ignore=shutil.ignore_patterns(
                 ".git", "__pycache__", ".venv", "node_modules",
                 ".pytest_cache", ".mypy_cache", "dist", "build",
+                "retrieval_benchmark_results.json", "repository_benchmark_results.json",
+                "provider-evaluation.json", "coverage.xml",
             ),
         )
         ground_truth_file = corpus_root / "evals" / "datasets" / "ground_truth.json"
