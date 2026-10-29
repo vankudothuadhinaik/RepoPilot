@@ -51,7 +51,8 @@ def evaluate(root: Path) -> dict[str, Any]:
         negative = [question for question in questions if not question["expected_path"]]
         details: list[dict[str, Any]] = []
         reciprocal_ranks: list[float] = []
-        path_hits = symbol_hits = citation_hits = 0
+        path_hits = top1_hits = symbol_hits = citation_hits = 0
+        category_counts: dict[str, dict[str, int]] = {}
 
         for question in questions:
             query = question.get("query") or "".join(chr(value) for value in question["query_codepoints"])
@@ -66,6 +67,9 @@ def evaluate(root: Path) -> dict[str, Any]:
             ask.raise_for_status()
             results = search.json()["results"]
             expected_path = question["expected_path"]
+            category = str(question.get("category", "uncategorized"))
+            category_counts.setdefault(category, {"total": 0, "passed": 0})
+            category_counts[category]["total"] += 1
             if expected_path:
                 rank = next(
                     (index for index, result in enumerate(results, 1) if result["path"] == expected_path),
@@ -74,6 +78,9 @@ def evaluate(root: Path) -> dict[str, Any]:
                 path_ok = rank is not None
                 if path_ok:
                     path_hits += 1
+                    category_counts[category]["passed"] += 1
+                    if rank == 1:
+                        top1_hits += 1
                     reciprocal_ranks.append(1.0 / rank)
                 else:
                     reciprocal_ranks.append(0.0)
@@ -106,12 +113,13 @@ def evaluate(root: Path) -> dict[str, Any]:
                     for evidence in ask.json()["evidence"]
                 )
                 citation_hits += int(citation_ok)
-                details.append({"id": question["id"], "rank": rank, "path": path_ok,
+                details.append({"id": question["id"], "category": category, "rank": rank, "path": path_ok,
                                 "symbol": symbol_ok, "symbol_candidates": symbol_candidates, "citation": citation_ok})
             else:
                 body = ask.json()
                 abstained = body["abstained"] and not body["evidence"]
-                details.append({"id": question["id"], "abstained": abstained,
+                category_counts[category]["passed"] += int(abstained)
+                details.append({"id": question["id"], "category": category, "abstained": abstained,
                                 "evidence_count": len(body["evidence"])})
 
         positive_count = len(positive)
@@ -120,6 +128,7 @@ def evaluate(root: Path) -> dict[str, Any]:
             "positive_queries": positive_count,
             "negative_queries": negative_count,
             "recall_at_5": round(path_hits / positive_count, 4),
+            "recall_at_1": round(top1_hits / positive_count, 4),
             "mrr_at_5": round(sum(reciprocal_ranks) / positive_count, 4),
             "symbol_accuracy": round(symbol_hits / positive_count, 4),
             "citation_accuracy": round(citation_hits / positive_count, 4),
@@ -128,12 +137,20 @@ def evaluate(root: Path) -> dict[str, Any]:
                 4,
             ),
         }
+        category_metrics = {
+            category: {
+                "total": values["total"],
+                "accuracy": round(values["passed"] / values["total"], 4) if values["total"] else 0.0,
+            }
+            for category, values in sorted(category_counts.items())
+        }
         passed = all(
             metrics[key] == 1.0
             for key in ("recall_at_5", "symbol_accuracy", "citation_accuracy", "unsupported_abstention_rate")
         )
         return {"title": "RepoPilot source-grounded validation", "root": str(root),
-                "metrics": metrics, "passed": passed, "results": details}
+                "metrics": metrics, "category_metrics": category_metrics,
+                "passed": passed, "results": details}
 
 
 def main() -> None:
