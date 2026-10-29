@@ -16,7 +16,7 @@ RepoPilot aims to help developers understand unfamiliar repositories, find relev
 - Python import relationship extraction.
 - SQLite metadata and FTS5 full-text search.
 - Search, symbols, graph, file evidence, and memory CRUD API endpoints.
-- Evidence retrieval endpoint that explicitly does **not** pretend to generate a semantic LLM answer.
+- Optional OpenAI-compatible natural-language answers with citations restricted to retrieved repository paths; retrieval remains available without credentials.
 - Optional MCP tools for repository listing, code search, symbol lookup, overview, and memory retrieval.
 - Unit/API/security regression tests, GitHub Actions CI, CodeQL workflow, Dependabot, Docker, and Compose.
 - Architecture, threat model, API, MCP, evaluation, and troubleshooting docs.
@@ -105,7 +105,7 @@ pip install -e ".[mcp]"
 python -m repopilot.mcp_server
 ```
 
-See [`docs/mcp-setup.md`](docs/mcp-setup.md).
+See [`docs/mcp-setup.md`](docs/mcp-setup.md). For optional cited LLM answers, see [`docs/llm-providers.md`](docs/llm-providers.md).
 
 ## Security and privacy
 
