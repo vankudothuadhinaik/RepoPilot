@@ -203,6 +203,22 @@ def index_repository(
                 continue
             content = read_safe_text(path, root=root)
             if content is None:
+                # Oversized files are intentionally outside the indexing contract.
+                # Other safe-looking text files that fail to read must mark the scan
+                # partial so persistence does not interpret them as deletions.
+                try:
+                    stat = path.stat()
+                    if not path.is_symlink() and stat.st_size <= 1_000_000:
+                        rel = path.relative_to(root).as_posix()
+                        errors.append({
+                            "path": rel,
+                            "error": "File could not be safely read; previous indexed content will be preserved.",
+                        })
+                except (OSError, ValueError):
+                    errors.append({
+                        "path": str(path),
+                        "error": "File changed or became unavailable during indexing; previous indexed content will be preserved.",
+                    })
                 continue
             rel = path.relative_to(root).as_posix()
             language = language_for(path)
