@@ -95,21 +95,32 @@ def _materialize_snapshot(source_root: Path, destination: Path, metadata: dict[s
     return destination
 
 
+def _prepare_external_corpus(
+    root: Path, name: str, metadata: dict[str, Any], destination: Path
+) -> Path:
+    source_root = (root / metadata["snapshot"]).resolve(strict=True)
+    if not source_root.is_relative_to(root):
+        raise ValueError(f"corpus path escapes checkout for {name!r}")
+    return _materialize_snapshot(source_root, destination, metadata)
+
+
+def _prepare_corpus(
+    root: Path, name: str, metadata: dict[str, Any], temporary_root: Path
+) -> Path:
+    destination = temporary_root / "corpus" / name
+    if name == "RepoPilot":
+        _clean_root(root, destination)
+        return destination
+    return _prepare_external_corpus(root, name, metadata, destination)
+
+
 def _prepare_corpora(
     root: Path, repositories: dict[str, dict[str, Any]], temporary_root: Path
 ) -> dict[str, Path]:
-    corpus_roots: dict[str, Path] = {}
-    for name, metadata in repositories.items():
-        destination = temporary_root / "corpus" / name
-        if name == "RepoPilot":
-            _clean_root(root, destination)
-        else:
-            source_root = (root / metadata["snapshot"]).resolve(strict=True)
-            if not source_root.is_relative_to(root):
-                raise ValueError(f"corpus path escapes checkout for {name!r}")
-            _materialize_snapshot(source_root, destination, metadata)
-        corpus_roots[name] = destination
-    return corpus_roots
+    return {
+        name: _prepare_corpus(root, name, metadata, temporary_root)
+        for name, metadata in repositories.items()
+    }
 
 
 def _register_corpora(client: Any, corpus_roots: dict[str, Path], headers: dict[str, str]) -> dict[str, str]:
