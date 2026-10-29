@@ -80,8 +80,9 @@ def _clean_root(root: Path, destination: Path) -> None:
             candidate.unlink()
 
 
-def _materialize_snapshot(source_root: Path, destination: Path, metadata: dict[str, Any]) -> Path:
-    snapshot = json.loads((source_root / "snapshot.json").read_text(encoding="utf-8"))
+def _validate_snapshot_metadata(
+    snapshot: dict[str, Any], metadata: dict[str, Any]
+) -> dict[str, str]:
     if snapshot.get("commit") != metadata.get("commit"):
         raise ValueError(f"pinned source revision mismatch for {metadata['id']!r}")
     if snapshot.get("upstream") != metadata.get("upstream"):
@@ -89,16 +90,35 @@ def _materialize_snapshot(source_root: Path, destination: Path, metadata: dict[s
     files = snapshot.get("files")
     if not isinstance(files, dict) or not files:
         raise ValueError(f"source snapshot is empty or malformed for {metadata['id']!r}")
+    return files
+
+
+def _safe_snapshot_path(raw_path: str, repository_id: str) -> Path:
+    relative = Path(raw_path)
+    if relative.is_absolute() or ".." in relative.parts or "\\" in raw_path:
+        raise ValueError(f"unsafe snapshot path in {repository_id!r}")
+    return relative
+
+
+def _write_snapshot_file(
+    destination: Path, relative: Path, source_text: str, repository_id: str
+) -> None:
+    if not isinstance(source_text, str):
+        raise ValueError(f"snapshot file must contain text for {repository_id!r}")
+    target = destination / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(source_text, encoding="utf-8")
+
+
+def _materialize_snapshot(
+    source_root: Path, destination: Path, metadata: dict[str, Any]
+) -> Path:
+    snapshot = json.loads((source_root / "snapshot.json").read_text(encoding="utf-8"))
+    files = _validate_snapshot_metadata(snapshot, metadata)
     destination.mkdir(parents=True)
     for raw_path, source_text in files.items():
-        relative = Path(raw_path)
-        if relative.is_absolute() or ".." in relative.parts or "\\" in raw_path:
-            raise ValueError(f"unsafe snapshot path in {metadata['id']!r}")
-        if not isinstance(source_text, str):
-            raise ValueError(f"snapshot file must contain text for {metadata['id']!r}")
-        target = destination / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(source_text, encoding="utf-8")
+        relative = _safe_snapshot_path(raw_path, metadata["id"])
+        _write_snapshot_file(destination, relative, source_text, metadata["id"])
     return destination
 
 
