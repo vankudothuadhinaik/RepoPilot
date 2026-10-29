@@ -76,10 +76,13 @@ def _normalize_text(value: str) -> str:
 
 def _quoted_answer_is_supported(answer: str, evidence: list[dict[str, Any]]) -> bool:
     quotes = re.findall(r'"([^"]+)"', answer)
-    if not quotes:
+    cited_paths = set(citation_paths(answer))
+    if not quotes or not cited_paths:
         return False
     source_lines = []
     for item in evidence:
+        if item.get("path") not in cited_paths:
+            continue
         for line in str(item.get("snippet", "")).splitlines():
             _, separator, content = line.partition(": ")
             if separator:
@@ -229,7 +232,7 @@ def evaluate(root: Path) -> dict[str, Any]:
                     scored = score_case(
                         question,
                         {"answer": "", "abstained": False, "evidence": [], "mode": "error"},
-                        root,
+                        corpus_root,
                     )
                     scored["evaluation_error"] = "malformed_api_response"
                     results.append(scored)
