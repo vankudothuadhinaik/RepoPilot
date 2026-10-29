@@ -96,6 +96,8 @@ curl http://127.0.0.1:8010/health/ready
 
 The service binds to loopback, runs as a non-root user, drops all capabilities, enables `no-new-privileges`, uses a read-only root filesystem with `/tmp` as tmpfs, and persists data in the `repopilot_data` named volume. If 8010 is occupied, change only the host side, for example `127.0.0.1:8011:8000`, and update the dashboard proxy and URLs together. Do not stop unrelated containers or delete the volume.
 
+The default Compose file does not mount arbitrary host source directories into the container. A path submitted to the Docker API must already be visible inside the container (for example `/app`); use the local Python API when indexing a Windows or macOS host path, or add an explicitly reviewed read-only bind mount for a controlled deployment.
+
 ## Authentication and token handling
 
 Every `/api/*` route requires `Authorization: Bearer <REP_PILOT_API_TOKEN>`. Missing or invalid credentials return `401`; `/health/live` and `/health/ready` remain public for monitoring. This is one shared local token, not a user identity or role system.
@@ -166,6 +168,7 @@ python -m ruff check .
 python -m mypy src/repopilot
 python -m compileall -q src
 PYTHONPATH=src python evals/run_eval.py
+python evals/run_ground_truth.py --root .
 ```
 
 Frontend check:
@@ -178,6 +181,8 @@ npm run build
 ```
 
 CI runs Ruff, Mypy, coverage-enabled pytest, compilation, the 50-query synthetic retrieval evaluation, frontend build, Docker image build, and optional MCP import checks on supported workflows. It publishes the retrieval report as a commit-specific artifact. CodeQL and Dependabot are also configured.
+
+The ground-truth evaluator is a separate, small source-level check for Recall@5, MRR@5, symbol-range accuracy, citation line correctness, and unsupported-query abstention. See [`docs/evaluation.md`](docs/evaluation.md) and [`docs/validation_report.md`](docs/validation_report.md) for definitions, commands, and the latest recorded run.
 
 ## Security and documentation
 

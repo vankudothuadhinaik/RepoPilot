@@ -19,4 +19,6 @@ Base URL: `http://127.0.0.1:8010` for Docker Compose. A local `repopilot serve` 
 - `DELETE /api/memories/{id}` — delete a memory.
 - `DELETE /api/repos/{id}` — remove repository index records.
 
+For Docker Compose, repository paths are resolved inside the container. The default Compose file persists only `/data` and does not expose arbitrary host source directories; use the local API for host paths or provide a deliberate read-only bind mount.
+
 Docker obtains `REP_PILOT_API_TOKEN` from Doppler and requires `Authorization: Bearer <token>` on every `/api/*` request. Missing or invalid credentials return `401`. Health endpoints remain public. Open `/docs` for the interactive OpenAPI schema.

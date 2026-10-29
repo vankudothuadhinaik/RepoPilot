@@ -7,5 +7,6 @@
 - **Host port conflict:** do not stop unrelated services. Change only the host side of the Compose mapping (for example, `127.0.0.1:8011:8000`) and update the dashboard proxy and documented URL; keep the container side at `:8000`.
 - **Doppler secrets:** verify the selected project/config with `doppler configure get project config`, then run Compose through `doppler run -- docker compose ...`. Do not write a secret-bearing `.env` file or print `REP_PILOT_API_TOKEN`.
 - **401 from `/api/*`:** obtain the token through Doppler in memory and send it as `Authorization: Bearer <token>`. `/health/live` and `/health/ready` remain public. Compose refuses to start when the Doppler token is missing or empty.
+- **Docker cannot find a host repository:** the default Compose service cannot see arbitrary host paths. Register a path visible inside the container, use the local Python API for host files, or add an explicitly reviewed read-only bind mount; do not assume a Windows path is available in Linux containers.
 - **Secrets not excluded:** review `src/repopilot/security.py` and add patterns to `.gitignore`; no secret scanner can detect every custom credential filename.
 - **MCP cannot see repositories:** ensure API and MCP process share `REP_PILOT_DATA_DIR`.

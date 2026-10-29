@@ -1,0 +1,38 @@
+{
+  "title": "RepoPilot source-grounded validation questions",
+  "description": "A small hand-reviewed set for the RepoPilot repository. Positive cases identify a source file and Python symbol whose source range can be independently checked; the negative case must abstain.",
+  "questions": [
+    {
+      "id": "ground-truth-001",
+      "query": "bearer token middleware",
+      "expected_path": "src/repopilot/api.py",
+      "expected_symbol": "require_api_token",
+      "expected_start_line": 25,
+      "expected_end_line": 37
+    },
+    {
+      "id": "ground-truth-002",
+      "query": "known_hashes digest",
+      "expected_path": "src/repopilot/indexer.py",
+      "expected_symbol": "index_repository",
+      "expected_start_line": 187,
+      "expected_end_line": 240
+    },
+    {
+      "id": "ground-truth-003",
+      "query": "path_prefix clauses",
+      "expected_path": "src/repopilot/store.py",
+      "expected_symbol": "search",
+      "expected_start_line": 256,
+      "expected_end_line": 288
+    },
+    {
+      "id": "ground-truth-004",
+      "query_codepoints": [112, 108, 105, 110, 116, 104, 32, 122, 121, 122, 122, 121, 118, 97],
+      "expected_path": null,
+      "expected_symbol": null,
+      "expected_start_line": null,
+      "expected_end_line": null
+    }
+  ]
+}

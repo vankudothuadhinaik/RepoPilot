@@ -37,6 +37,7 @@ jobs:
           fail_ci_if_error: false
       - run: python -m compileall -q src
       - run: PYTHONPATH=src python evals/run_eval.py
+      - run: PYTHONPATH=src python evals/run_ground_truth.py --root .
       - name: Publish retrieval benchmark report
         uses: actions/upload-artifact@v4
         with:

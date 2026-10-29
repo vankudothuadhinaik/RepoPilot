@@ -1,0 +1,137 @@
+"""Evaluate API retrieval, symbols, citations, and abstention on a reviewed corpus."""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import tempfile
+from pathlib import Path
+from typing import Any
+
+
+def _citation_matches_source(item: dict[str, Any], root: Path) -> bool:
+    path = str(item.get("path", ""))
+    start = item.get("start_line")
+    end = item.get("end_line")
+    if not path or not isinstance(start, int) or not isinstance(end, int) or start < 1 or end < start:
+        return False
+    source = root / Path(path)
+    if not source.is_file() or Path(path).is_absolute() or ".." in Path(path).parts:
+        return False
+    lines = source.read_text(encoding="utf-8").splitlines()
+    if end > len(lines):
+        return False
+    cited_lines: dict[int, str] = {}
+    for line in str(item.get("snippet", "")).splitlines():
+        number, separator, content = line.partition(": ")
+        if separator and number.isdigit():
+            cited_lines[int(number)] = content
+    return bool(cited_lines) and all(lines[number - 1] == content for number, content in cited_lines.items())
+
+
+def evaluate(root: Path) -> dict[str, Any]:
+    os.environ.setdefault("REP_PILOT_API_TOKEN", "ground-truth-validation-token")
+    with tempfile.TemporaryDirectory() as directory:
+        os.environ["REP_PILOT_DATA_DIR"] = directory
+        from fastapi.testclient import TestClient
+
+        from repopilot.api import app
+
+        client = TestClient(app)
+        headers = {"Authorization": "Bearer ground-truth-validation-token"}
+        registration = client.post("/api/repos", json={"path": str(root)}, headers=headers)
+        registration.raise_for_status()
+        repo_id = registration.json()["id"]
+        questions = json.loads(
+            (Path(__file__).parent / "datasets" / "ground_truth.json").read_text(encoding="utf-8")
+        )["questions"]
+
+        positive = [question for question in questions if question["expected_path"]]
+        negative = [question for question in questions if not question["expected_path"]]
+        details: list[dict[str, Any]] = []
+        reciprocal_ranks: list[float] = []
+        path_hits = symbol_hits = citation_hits = 0
+
+        for question in questions:
+            query = question.get("query") or "".join(chr(value) for value in question["query_codepoints"])
+            payload = {"question": query, "limit": 5}
+            search = client.post(f"/api/repos/{repo_id}/search", json=payload, headers=headers)
+            ask = client.post(f"/api/repos/{repo_id}/ask", json=payload, headers=headers)
+            search.raise_for_status()
+            ask.raise_for_status()
+            results = search.json()["results"]
+            expected_path = question["expected_path"]
+            if expected_path:
+                rank = next(
+                    (index for index, result in enumerate(results, 1) if result["path"] == expected_path),
+                    None,
+                )
+                path_ok = rank is not None
+                if path_ok:
+                    path_hits += 1
+                    reciprocal_ranks.append(1.0 / rank)
+                else:
+                    reciprocal_ranks.append(0.0)
+                symbols = client.get(
+                    f"/api/repos/{repo_id}/symbols",
+                    params={"q": question["expected_symbol"]},
+                    headers=headers,
+                )
+                symbols.raise_for_status()
+                symbol_ok = any(
+                    symbol["path"] == expected_path
+                    and symbol["start_line"] == question["expected_start_line"]
+                    and symbol["end_line"] == question["expected_end_line"]
+                    for symbol in symbols.json()
+                )
+                symbol_hits += int(symbol_ok)
+                citation_ok = any(
+                    evidence["path"] == expected_path
+                    and evidence["start_line"] <= question["expected_end_line"]
+                    and evidence["end_line"] >= question["expected_start_line"]
+                    and _citation_matches_source(evidence, root)
+                    for evidence in ask.json()["evidence"]
+                )
+                citation_hits += int(citation_ok)
+                details.append({"id": question["id"], "rank": rank, "path": path_ok,
+                                "symbol": symbol_ok, "citation": citation_ok})
+            else:
+                body = ask.json()
+                abstained = body["abstained"] and not body["evidence"]
+                details.append({"id": question["id"], "abstained": abstained,
+                                "evidence_count": len(body["evidence"])})
+
+        positive_count = len(positive)
+        negative_count = len(negative)
+        metrics = {
+            "positive_queries": positive_count,
+            "negative_queries": negative_count,
+            "recall_at_5": round(path_hits / positive_count, 4),
+            "mrr_at_5": round(sum(reciprocal_ranks) / positive_count, 4),
+            "symbol_accuracy": round(symbol_hits / positive_count, 4),
+            "citation_accuracy": round(citation_hits / positive_count, 4),
+            "unsupported_abstention_rate": round(
+                sum(item["abstained"] for item in details if "abstained" in item) / negative_count,
+                4,
+            ),
+        }
+        passed = all(
+            metrics[key] == 1.0
+            for key in ("recall_at_5", "symbol_accuracy", "citation_accuracy", "unsupported_abstention_rate")
+        )
+        return {"title": "RepoPilot source-grounded validation", "root": str(root),
+                "metrics": metrics, "passed": passed, "results": details}
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", type=Path, default=Path.cwd())
+    args = parser.parse_args()
+    report = evaluate(args.root.resolve())
+    print(json.dumps(report, indent=2, sort_keys=True))
+    if not report["passed"]:
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()
