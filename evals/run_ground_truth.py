@@ -7,6 +7,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 
 def _citation_matches_source(item: dict[str, Any], root: Path) -> bool:
@@ -56,7 +57,11 @@ def evaluate(root: Path) -> dict[str, Any]:
             query = question.get("query") or "".join(chr(value) for value in question["query_codepoints"])
             payload = {"question": query, "limit": 5}
             search = client.post(f"/api/repos/{repo_id}/search", json=payload, headers=headers)
-            ask = client.post(f"/api/repos/{repo_id}/ask", json=payload, headers=headers)
+            # This evaluator measures deterministic retrieval/evidence behavior.
+            # Keep provider calls out of CI; provider-backed answer quality is covered
+            # by the separate opt-in live-provider evaluation.
+            with patch("repopilot.api.generate_grounded_answer", return_value=None):
+                ask = client.post(f"/api/repos/{repo_id}/ask", json=payload, headers=headers)
             search.raise_for_status()
             ask.raise_for_status()
             results = search.json()["results"]
@@ -78,11 +83,19 @@ def evaluate(root: Path) -> dict[str, Any]:
                     headers=headers,
                 )
                 symbols.raise_for_status()
-                symbol_ok = any(
-                    symbol["path"] == expected_path
-                    and symbol["start_line"] == question["expected_start_line"]
-                    and symbol["end_line"] == question["expected_end_line"]
+                symbol_candidates = [
+                    {
+                        "qualified_name": symbol["qualified_name"],
+                        "start_line": symbol["start_line"],
+                        "end_line": symbol["end_line"],
+                    }
                     for symbol in symbols.json()
+                    if symbol["path"] == expected_path and symbol["name"] == question["expected_symbol"]
+                ]
+                symbol_ok = any(
+                    symbol["start_line"] == question["expected_start_line"]
+                    and symbol["end_line"] == question["expected_end_line"]
+                    for symbol in symbol_candidates
                 )
                 symbol_hits += int(symbol_ok)
                 citation_ok = any(
@@ -94,7 +107,7 @@ def evaluate(root: Path) -> dict[str, Any]:
                 )
                 citation_hits += int(citation_ok)
                 details.append({"id": question["id"], "rank": rank, "path": path_ok,
-                                "symbol": symbol_ok, "citation": citation_ok})
+                                "symbol": symbol_ok, "symbol_candidates": symbol_candidates, "citation": citation_ok})
             else:
                 body = ask.json()
                 abstained = body["abstained"] and not body["evidence"]

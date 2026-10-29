@@ -23,12 +23,27 @@
       "query": "path_prefix clauses",
       "expected_path": "src/repopilot/store.py",
       "expected_symbol": "search",
-      "expected_start_line": 281,
-      "expected_end_line": 313
+      "expected_start_line": 282,
+      "expected_end_line": 331
     },
     {
       "id": "ground-truth-004",
-      "query_codepoints": [112, 108, 105, 110, 116, 104, 32, 122, 121, 122, 122, 121, 118, 97],
+      "query_codepoints": [
+        112,
+        108,
+        105,
+        110,
+        116,
+        104,
+        32,
+        122,
+        121,
+        122,
+        122,
+        121,
+        118,
+        97
+      ],
       "expected_path": null,
       "expected_symbol": null,
       "expected_start_line": null,

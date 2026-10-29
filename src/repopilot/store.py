@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import uuid
 from collections.abc import Iterator
@@ -288,9 +289,12 @@ class Store:
         if prefix is not None and (not prefix or "\\" in prefix or ".." in prefix.split("/")):
             return []
         with self.connect() as db:
-            # FTS syntax is user-controlled; quote tokens so punctuation does not become operators.
-            tokens = [part.replace('"', '""') for part in query.split() if part]
-            fts_query = " AND ".join(f'"{token}"' for token in tokens)
+            # Match FTS tokenization: identifiers such as "path_prefix" are split
+            # into searchable terms instead of being treated as one opaque token.
+            tokens = list(dict.fromkeys(re.findall(r"[A-Za-z0-9]+", query.casefold())))
+            if not tokens:
+                return []
+            fts_query = " AND ".join(f'"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens)
             clauses = ["repository_id=?", "file_search MATCH ?"]
             params: list[Any] = [repo_id, fts_query]
             if language:
@@ -305,12 +309,26 @@ class Store:
                 FROM file_search WHERE {" AND ".join(clauses)}
                 ORDER BY rank LIMIT ?
             """
-            params.append(limit)
+            # Retrieve a bounded candidate pool before path-aware reranking, so a
+            # high-BM25 documentation hit cannot hide a query-named source file
+            # merely because the caller requested a small final result count.
+            params.append(min(max(limit * 5, 50), 200))
             try:
                 rows = db.execute(sql, params).fetchall()
             except sqlite3.OperationalError:
                 return self._fallback_search(db, repo_id, query, limit, language, prefix)
-            return [{**dict(row), "rank": float(row["rank"])} for row in rows]
+            results = [{**dict(row), "rank": float(row["rank"])} for row in rows]
+            # BM25 scores content relevance, but a symbol or module named in the
+            # query should beat generic documentation that repeats the same words.
+            # Keep the boost bounded to exact path tokens; do not use substring
+            # matches that would make "auth" match unrelated names like "author".
+            def path_score(item: dict[str, Any]) -> int:
+                path_tokens = set(re.findall(r"[A-Za-z0-9]+", item["path"].casefold()))
+                return sum(token in path_tokens for token in tokens)
+
+            return sorted(
+                results, key=lambda item: (-path_score(item), item["rank"], item["path"])
+            )[:limit]
 
     def _fallback_search(self, db: sqlite3.Connection, repo_id: str, query: str, limit: int,
                          language: str | None, path_prefix: str | None) -> list[dict[str, Any]]:
@@ -318,7 +336,9 @@ class Store:
             "SELECT path,language,content FROM files WHERE repository_id=?", (repo_id,)
         ).fetchall()
         result = []
-        terms = query.casefold().split()
+        terms = list(dict.fromkeys(re.findall(r"[A-Za-z0-9]+", query.casefold())))
+        if not terms:
+            return []
         for row in rows:
             path = row["path"]
             if language and row["language"] != language:
@@ -333,9 +353,11 @@ class Store:
                     "path": path, "language": row["language"],
                     "snippet": content[:500], "rank": 0.0,
                 })
-            if len(result) >= limit:
-                break
-        return result
+        def path_score(item: dict[str, Any]) -> int:
+            path_tokens = set(re.findall(r"[A-Za-z0-9]+", item["path"].casefold()))
+            return sum(term in path_tokens for term in terms)
+
+        return sorted(result, key=lambda item: (-path_score(item), item["path"]))[:limit]
 
     def symbols(self, repo_id: str, query: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         """Search symbol metadata by simple name, qualified name, kind, path, or signature."""
