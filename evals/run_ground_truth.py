@@ -83,11 +83,19 @@ def evaluate(root: Path) -> dict[str, Any]:
                     headers=headers,
                 )
                 symbols.raise_for_status()
-                symbol_ok = any(
-                    symbol["path"] == expected_path
-                    and symbol["start_line"] == question["expected_start_line"]
-                    and symbol["end_line"] == question["expected_end_line"]
+                symbol_candidates = [
+                    {
+                        "qualified_name": symbol["qualified_name"],
+                        "start_line": symbol["start_line"],
+                        "end_line": symbol["end_line"],
+                    }
                     for symbol in symbols.json()
+                    if symbol["path"] == expected_path and symbol["name"] == question["expected_symbol"]
+                ]
+                symbol_ok = any(
+                    symbol["start_line"] == question["expected_start_line"]
+                    and symbol["end_line"] == question["expected_end_line"]
+                    for symbol in symbol_candidates
                 )
                 symbol_hits += int(symbol_ok)
                 citation_ok = any(
@@ -99,7 +107,7 @@ def evaluate(root: Path) -> dict[str, Any]:
                 )
                 citation_hits += int(citation_ok)
                 details.append({"id": question["id"], "rank": rank, "path": path_ok,
-                                "symbol": symbol_ok, "citation": citation_ok})
+                                "symbol": symbol_ok, "symbol_candidates": symbol_candidates, "citation": citation_ok})
             else:
                 body = ask.json()
                 abstained = body["abstained"] and not body["evidence"]
