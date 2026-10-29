@@ -238,45 +238,55 @@ class Store:
         if not query:
             return []
         limit = max(1, min(limit, 50))
+        prefix = path_prefix.strip("/") if path_prefix else None
+        if prefix is not None and (not prefix or "\\" in prefix or ".." in prefix.split("/")):
+            return []
         with self.connect() as db:
             # FTS syntax is user-controlled; quote tokens so punctuation does not become operators.
             tokens = [part.replace('"', '""') for part in query.split() if part]
             fts_query = " AND ".join(f'"{token}"' for token in tokens)
+            clauses = ["repository_id=?", "file_search MATCH ?"]
+            params: list[Any] = [repo_id, fts_query]
+            if language:
+                clauses.append("language=?")
+                params.append(language)
+            if prefix:
+                clauses.append("(path=? OR substr(path,1,length(?)+1)=? || '/')")
+                params.extend([prefix, prefix, prefix])
+            sql = f"""
+                SELECT path, language, snippet(file_search, 3, '[', ']', ' … ', 12) AS snippet,
+                       bm25(file_search) AS rank
+                FROM file_search WHERE {" AND ".join(clauses)}
+                ORDER BY rank LIMIT ?
+            """
+            params.append(limit)
             try:
-                rows = db.execute("""
-                    SELECT path, language, snippet(file_search, 3, '[', ']', ' … ', 12) AS snippet,
-                           bm25(file_search) AS rank
-                    FROM file_search WHERE repository_id=? AND file_search MATCH ?
-                    ORDER BY rank LIMIT ?
-                """, (repo_id, fts_query, limit * 3)).fetchall()
+                rows = db.execute(sql, params).fetchall()
             except sqlite3.OperationalError:
-                return self._fallback_search(db, repo_id, query, limit, language, path_prefix)
-            result = []
-            for row in rows:
-                if language and row["language"] != language:
-                    continue
-                if path_prefix and not row["path"].startswith(path_prefix):
-                    continue
-                result.append({**dict(row), "rank": float(row["rank"])})
-                if len(result) >= limit:
-                    break
-            return result
+                return self._fallback_search(db, repo_id, query, limit, language, prefix)
+            return [{**dict(row), "rank": float(row["rank"])} for row in rows]
 
     def _fallback_search(self, db: sqlite3.Connection, repo_id: str, query: str, limit: int,
                          language: str | None, path_prefix: str | None) -> list[dict[str, Any]]:
-        sql = "SELECT path,language,content FROM files WHERE repository_id=?"
-        rows = db.execute(sql, (repo_id,)).fetchall()
+        rows = db.execute(
+            "SELECT path,language,content FROM files WHERE repository_id=?", (repo_id,)
+        ).fetchall()
         result = []
         terms = query.casefold().split()
         for row in rows:
+            path = row["path"]
             if language and row["language"] != language:
                 continue
-            if path_prefix and not row["path"].startswith(path_prefix):
+            if path_prefix and not (
+                path == path_prefix or path.startswith(path_prefix + "/")
+            ):
                 continue
             content = row["content"]
             if all(term in content.casefold() for term in terms):
-                result.append({"path": row["path"], "language": row["language"],
-                               "snippet": content[:500], "rank": 0.0})
+                result.append({
+                    "path": path, "language": row["language"],
+                    "snippet": content[:500], "rank": 0.0,
+                })
             if len(result) >= limit:
                 break
         return result
