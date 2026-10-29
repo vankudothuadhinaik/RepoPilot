@@ -95,6 +95,9 @@ def test_search_filters_are_applied_before_limit_and_use_directory_boundaries(fi
 def test_parser_version_change_rebuilds_unchanged_symbol_records(fixture_repo, store):
     snapshot = index_repository(fixture_repo)
     snapshot["parser_version"] = "1"
+    for symbol in snapshot["symbols"]:
+        symbol["qualified_name"] = symbol["name"]
+        symbol["signature"] = symbol["name"]
     repo = store.index(snapshot)
 
     known_hashes = store.file_hashes(fixture_repo)
