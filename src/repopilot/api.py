@@ -154,27 +154,45 @@ def ask_repository(repo_id: str, payload: AskRequest) -> dict[str, Any]:
         lines = file_data["content"].splitlines()
         if not lines:
             continue
-        # Prefer a compact window around actual query-term matches. If none match,
-        # cite a bounded beginning-of-file overview rather than pretending there was
-        # a keyword match; the returned evidence still points to the exact indexed file.
-        terms = [
+        # Evidence must contain a query-specific match. Never cite an arbitrary file
+        # prefix merely because retrieval returned that file.
+        stopwords = {
+            "a", "an", "and", "are", "as", "at", "be", "by", "can", "do", "does",
+            "for", "from", "how", "in", "is", "it", "of", "on", "or", "that",
+            "the", "this", "to", "what", "when", "where", "which", "who", "why",
+            "with", "you", "your", "show", "find", "explain", "tell", "about",
+        }
+        terms = list(dict.fromkeys(
             term.casefold() for term in re.findall(r"[A-Za-z0-9_./:-]+", payload.question)
-            if len(term) >= 2
+            if len(term) >= 2 and term.casefold() not in stopwords
+        ))
+        if not terms:
+            continue
+
+        def matches_term(line: str, term: str) -> bool:
+            if term.isalnum() or "_" in term:
+                return re.search(r"(?<!\\w)" + re.escape(term) + r"(?!\\w)", line.casefold()) is not None
+            return term in line.casefold()
+
+        line_scores = [
+            sum(matches_term(line, term) for term in terms)
+            for line in lines
         ]
-        matching_lines = [
-            number for number, line in enumerate(lines, start=1)
-            if any(term in line.casefold() for term in terms)
-        ]
-        if matching_lines:
-            start_line = matching_lines[0]
-            end_line = matching_lines[-1]
-            if end_line - start_line > 7:
-                end_line = start_line + 7
-        else:
-            start_line, end_line = 1, min(len(lines), 8)
+        if not any(line_scores):
+            continue
+
+        # Pick the best bounded contiguous window instead of joining the first and
+        # last keyword hit, which can accidentally cite unrelated intervening code.
+        window_size = min(8, len(lines))
+        best_start = max(
+            range(len(lines) - window_size + 1),
+            key=lambda offset: (sum(line_scores[offset:offset + window_size]), -offset),
+        )
+        start_line = best_start + 1
+        end_line = min(len(lines), start_line + window_size - 1)
         context_start = max(1, start_line - 2)
         context_end = min(len(lines), end_line + 2)
-        snippet = "\n".join(
+        snippet = "\\n".join(
             f"{line_number}: {lines[line_number - 1]}"
             for line_number in range(context_start, context_end + 1)
         )
