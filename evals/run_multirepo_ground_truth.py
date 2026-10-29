@@ -18,9 +18,14 @@ def _citation_matches_source(item: dict[str, Any], root: Path) -> bool:
     path = str(item.get("path", ""))
     start, end = item.get("start_line"), item.get("end_line")
     if (
-        not path or not isinstance(start, int) or not isinstance(end, int)
-        or start < 1 or end < start or Path(path).is_absolute()
-        or ".." in Path(path).parts or "\\" in path
+        not path
+        or not isinstance(start, int)
+        or not isinstance(end, int)
+        or start < 1
+        or end < start
+        or Path(path).is_absolute()
+        or ".." in Path(path).parts
+        or "\\" in path
     ):
         return False
     source = root / Path(path)
@@ -68,6 +73,209 @@ def _clean_root(root: Path, destination: Path) -> None:
             candidate.unlink()
 
 
+def _materialize_snapshot(source_root: Path, destination: Path, metadata: dict[str, Any]) -> Path:
+    snapshot = json.loads((source_root / "snapshot.json").read_text(encoding="utf-8"))
+    if snapshot.get("commit") != metadata.get("commit"):
+        raise ValueError(f"pinned source revision mismatch for {metadata['id']!r}")
+    if snapshot.get("upstream") != metadata.get("upstream"):
+        raise ValueError(f"pinned source origin mismatch for {metadata['id']!r}")
+    files = snapshot.get("files")
+    if not isinstance(files, dict) or not files:
+        raise ValueError(f"source snapshot is empty or malformed for {metadata['id']!r}")
+    destination.mkdir(parents=True)
+    for raw_path, source_text in files.items():
+        relative = Path(raw_path)
+        if relative.is_absolute() or ".." in relative.parts or "\\" in raw_path:
+            raise ValueError(f"unsafe snapshot path in {metadata['id']!r}")
+        if not isinstance(source_text, str):
+            raise ValueError(f"snapshot file must contain text for {metadata['id']!r}")
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source_text, encoding="utf-8")
+    return destination
+
+
+def _prepare_corpora(
+    root: Path, repositories: dict[str, dict[str, Any]], temporary_root: Path
+) -> dict[str, Path]:
+    corpus_roots: dict[str, Path] = {}
+    for name, metadata in repositories.items():
+        destination = temporary_root / "corpus" / name
+        if name == "RepoPilot":
+            _clean_root(root, destination)
+        else:
+            source_root = (root / metadata["snapshot"]).resolve(strict=True)
+            if not source_root.is_relative_to(root):
+                raise ValueError(f"corpus path escapes checkout for {name!r}")
+            _materialize_snapshot(source_root, destination, metadata)
+        corpus_roots[name] = destination
+    return corpus_roots
+
+
+def _register_corpora(client: Any, corpus_roots: dict[str, Path], headers: dict[str, str]) -> dict[str, str]:
+    repo_ids: dict[str, str] = {}
+    for name, corpus_root in corpus_roots.items():
+        response = client.post("/api/repos", json={"path": str(corpus_root)}, headers=headers)
+        if response.status_code >= 400:
+            try:
+                detail = response.json().get("detail", "registration failed")
+            except ValueError:
+                detail = "registration failed with a non-JSON response"
+            raise RuntimeError(
+                f"failed to register corpus {name!r}: HTTP {response.status_code}: {detail}"
+            )
+        repo_ids[name] = response.json()["id"]
+    return repo_ids
+
+
+def _evaluate_question(
+    client: Any,
+    question: dict[str, Any],
+    repo_id: str,
+    corpus_root: Path,
+    headers: dict[str, str],
+) -> dict[str, Any]:
+    name = question["repository"]
+    category = str(question.get("category", "uncategorized"))
+    payload = {"question": _query(question), "limit": 5}
+    search = client.post(f"/api/repos/{repo_id}/search", json=payload, headers=headers)
+    with patch("repopilot.api.generate_grounded_answer", return_value=None):
+        ask = client.post(f"/api/repos/{repo_id}/ask", json=payload, headers=headers)
+    search.raise_for_status()
+    ask.raise_for_status()
+    results = search.json()["results"]
+    answer = ask.json()
+    expected_path = question.get("expected_path")
+
+    if not expected_path:
+        evidence = answer.get("evidence") or []
+        abstained = bool(answer.get("abstained")) and not evidence
+        return {
+            "id": question["id"], "repository": name, "category": category,
+            "unsupported_abstained": abstained, "evidence_count": len(evidence),
+            "passed": abstained,
+        }
+
+    rank = next(
+        (index for index, item in enumerate(results, 1) if item["path"] == expected_path),
+        None,
+    )
+    expected_start = question["expected_start_line"]
+    expected_end = question["expected_end_line"]
+    evidence_checks = [
+        {
+            "path": item.get("path"),
+            "start_line": item.get("start_line"),
+            "end_line": item.get("end_line"),
+            "source_lines_valid": _citation_matches_source(item, corpus_root),
+        }
+        for item in (answer.get("evidence") or [])
+        if isinstance(item, dict)
+    ]
+    citation_ok = any(
+        item["path"] == expected_path
+        and isinstance(item["start_line"], int)
+        and isinstance(item["end_line"], int)
+        and item["start_line"] <= expected_end
+        and item["end_line"] >= expected_start
+        and item["source_lines_valid"]
+        for item in evidence_checks
+    )
+    symbol_ok: bool | None = None
+    if question.get("expected_symbol"):
+        symbols = client.get(
+            f"/api/repos/{repo_id}/symbols",
+            params={"q": question["expected_symbol"]},
+            headers=headers,
+        )
+        symbols.raise_for_status()
+        candidates = [
+            item for item in symbols.json()
+            if item["path"] == expected_path and item["name"] == question["expected_symbol"]
+        ]
+        symbol_ok = any(
+            item["start_line"] == expected_start and item["end_line"] == expected_end
+            for item in candidates
+        )
+    path_ok = rank is not None
+    passed = path_ok and citation_ok and symbol_ok is not False
+    return {
+        "id": question["id"], "repository": name, "category": category,
+        "expected_path": expected_path, "expected_range": [expected_start, expected_end],
+        "rank_at_5": rank, "path_found": path_ok, "symbol_range_valid": symbol_ok,
+        "citation_range_valid": citation_ok, "evidence_checks": evidence_checks,
+        "passed": passed,
+    }
+
+
+def _build_report(
+    dataset: dict[str, Any], dataset_bytes: bytes, questions: list[dict[str, Any]],
+    details: list[dict[str, Any]],
+) -> dict[str, Any]:
+    by_id = {item["id"]: item for item in details}
+    positives = [item for item in questions if item.get("expected_path")]
+    negatives = [item for item in questions if not item.get("expected_path")]
+    symbol_cases = [item for item in positives if item.get("expected_symbol")]
+    positive_results = [by_id[item["id"]] for item in positives]
+    negative_results = [by_id[item["id"]] for item in negatives]
+    ranks = [item.get("rank_at_5") for item in positive_results]
+    category_counts: dict[str, dict[str, int]] = {}
+    for detail in details:
+        values = category_counts.setdefault(detail["category"], {"total": 0, "passed": 0})
+        values["total"] += 1
+        values["passed"] += int(bool(detail["passed"]))
+    metrics = {
+        "positive_queries": len(positives),
+        "negative_queries": len(negatives),
+        "symbol_range_cases": len(symbol_cases),
+        "recall_at_1": round(sum(rank == 1 for rank in ranks) / len(positives), 4),
+        "recall_at_5": round(sum(rank is not None for rank in ranks) / len(positives), 4),
+        "mrr_at_5": round(
+            sum(1 / rank if rank else 0.0 for rank in ranks) / len(positives), 4
+        ),
+        "citation_range_validity": round(
+            sum(bool(item["citation_range_valid"]) for item in positive_results) / len(positives), 4
+        ),
+        "symbol_range_accuracy": (
+            round(
+                sum(bool(by_id[item["id"]]["symbol_range_valid"]) for item in symbol_cases)
+                / len(symbol_cases), 4
+            ) if symbol_cases else None
+        ),
+        "unsupported_abstention_rate": round(
+            sum(bool(item["unsupported_abstained"]) for item in negative_results) / len(negatives), 4
+        ),
+        "passed_cases": sum(bool(item["passed"]) for item in details),
+        "total_cases": len(details),
+    }
+    category_metrics = {
+        name: {
+            "passed": value["passed"], "total": value["total"],
+            "accuracy": round(value["passed"] / value["total"], 4),
+        }
+        for name, value in sorted(category_counts.items())
+    }
+    return {
+        "schema_version": 1,
+        "title": dataset.get("title"),
+        "dataset_version": dataset.get("version"),
+        "dataset_sha256": hashlib.sha256(dataset_bytes).hexdigest(),
+        "authoring": dataset.get("authoring"),
+        "repositories": dataset.get("repositories"),
+        "runtime": {"python": sys.version.split()[0], "platform": platform.platform()},
+        "metrics": metrics,
+        "category_metrics": category_metrics,
+        "passed": all(bool(item["passed"]) for item in details),
+        "results": details,
+        "limitations": [
+            "Maintainer-authored expected ranges are not independent review; check authoring metadata.",
+            "Lexical retrieval, valid source lines, and symbol spans do not prove semantic entailment.",
+            "Unsupported-query scores depend on this curated set and do not establish general abstention safety.",
+            "No LLM provider is called by this offline evaluator.",
+        ],
+    }
+
+
 def evaluate(root: Path, dataset_path: Path | None = None) -> dict[str, Any]:
     """Run the deterministic multi-repository evaluation without an LLM provider."""
     root = root.expanduser().resolve(strict=True)
@@ -90,206 +298,27 @@ def evaluate(root: Path, dataset_path: Path | None = None) -> dict[str, Any]:
     token = "multirepo-ground-truth-local-token"
     previous_token = os.environ.get("REP_PILOT_API_TOKEN")
     previous_data_dir = os.environ.get("REP_PILOT_DATA_DIR")
-    details: list[dict[str, Any]] = []
     try:
         with tempfile.TemporaryDirectory(prefix="repopilot-multirepo-eval-") as temporary:
             temporary_root = Path(temporary)
-            data_dir = temporary_root / "data"
             os.environ["REP_PILOT_API_TOKEN"] = token
-            os.environ["REP_PILOT_DATA_DIR"] = str(data_dir)
-            corpus_roots: dict[str, Path] = {}
-            for name, metadata in repositories.items():
-                if name == "RepoPilot":
-                    corpus_root = temporary_root / "corpus" / "RepoPilot"
-                    _clean_root(root, corpus_root)
-                else:
-                    corpus_root = temporary_root / "corpus" / name
-                    source_root = (root / metadata["snapshot"]).resolve(strict=True)
-                    if not source_root.is_relative_to(root):
-                        raise ValueError(f"corpus path escapes checkout for {name!r}")
-                    snapshot_path = source_root / "snapshot.json"
-                    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
-                    if snapshot.get("commit") != metadata.get("commit"):
-                        raise ValueError(f"pinned source revision mismatch for {name!r}")
-                    corpus_root.mkdir(parents=True)
-                    for relative_path, source_text in snapshot.get("files", {}).items():
-                        relative = Path(relative_path)
-                        if relative.is_absolute() or ".." in relative.parts or "\\" in relative_path:
-                            raise ValueError(f"unsafe snapshot path in corpus {name!r}")
-                        target = corpus_root / relative
-                        target.parent.mkdir(parents=True, exist_ok=True)
-                        target.write_text(source_text, encoding="utf-8")
-                corpus_roots[name] = corpus_root
-
+            os.environ["REP_PILOT_DATA_DIR"] = str(temporary_root / "data")
+            corpus_roots = _prepare_corpora(root, repositories, temporary_root)
             from fastapi.testclient import TestClient
 
             from repopilot.api import app
 
             client = TestClient(app)
             headers = {"Authorization": f"Bearer {token}"}
-            repo_ids: dict[str, str] = {}
-            for name, corpus_root in corpus_roots.items():
-                response = client.post(
-                    "/api/repos", json={"path": str(corpus_root)}, headers=headers
+            repo_ids = _register_corpora(client, corpus_roots, headers)
+            details = [
+                _evaluate_question(
+                    client, question, repo_ids[question["repository"]],
+                    corpus_roots[question["repository"]], headers,
                 )
-                if response.status_code >= 400:
-                    try:
-                        detail = response.json().get("detail", "registration failed")
-                    except ValueError:
-                        detail = "registration failed with a non-JSON response"
-                    raise RuntimeError(
-                        f"failed to register corpus {name!r}: HTTP {response.status_code}: {detail}"
-                    )
-                repo_ids[name] = response.json()["id"]
-
-            positive = [item for item in questions if item.get("expected_path")]
-            negative = [item for item in questions if not item.get("expected_path")]
-            symbol_cases = [item for item in positive if item.get("expected_symbol")]
-            category_counts: dict[str, dict[str, int]] = {}
-            reciprocal_ranks: list[float] = []
-            path_hits = top1_hits = citation_hits = symbol_hits = 0
-
-            for question in questions:
-                name = question["repository"]
-                repo_id = repo_ids[name]
-                query = _query(question)
-                payload = {"question": query, "limit": 5}
-                search = client.post(
-                    f"/api/repos/{repo_id}/search", json=payload, headers=headers
-                )
-                with patch("repopilot.api.generate_grounded_answer", return_value=None):
-                    ask = client.post(
-                        f"/api/repos/{repo_id}/ask", json=payload, headers=headers
-                    )
-                search.raise_for_status()
-                ask.raise_for_status()
-                results = search.json()["results"]
-                answer = ask.json()
-                category = str(question.get("category", "uncategorized"))
-                category_counts.setdefault(category, {"total": 0, "passed": 0})
-                category_counts[category]["total"] += 1
-                expected_path = question.get("expected_path")
-
-                if expected_path:
-                    rank = next(
-                        (i for i, item in enumerate(results, 1) if item["path"] == expected_path),
-                        None,
-                    )
-                    path_ok = rank is not None
-                    reciprocal_ranks.append(1 / rank if rank else 0.0)
-                    path_hits += int(path_ok)
-                    top1_hits += int(rank == 1)
-                    expected_start = question["expected_start_line"]
-                    expected_end = question["expected_end_line"]
-                    evidence = answer.get("evidence") or []
-                    evidence_checks = [
-                        {
-                            "path": item.get("path"),
-                            "start_line": item.get("start_line"),
-                            "end_line": item.get("end_line"),
-                            "source_lines_valid": _citation_matches_source(
-                                item, corpus_roots[name]
-                            ),
-                        }
-                        for item in evidence if isinstance(item, dict)
-                    ]
-                    citation_ok = any(
-                        item["path"] == expected_path
-                        and isinstance(item["start_line"], int)
-                        and isinstance(item["end_line"], int)
-                        and item["start_line"] <= expected_end
-                        and item["end_line"] >= expected_start
-                        and item["source_lines_valid"]
-                        for item in evidence_checks
-                    )
-                    citation_hits += int(citation_ok)
-                    symbol_ok: bool | None = None
-                    if question.get("expected_symbol"):
-                        symbols = client.get(
-                            f"/api/repos/{repo_id}/symbols",
-                            params={"q": question["expected_symbol"]},
-                            headers=headers,
-                        )
-                        symbols.raise_for_status()
-                        candidates = [
-                            item for item in symbols.json()
-                            if item["path"] == expected_path
-                            and item["name"] == question["expected_symbol"]
-                        ]
-                        symbol_ok = any(
-                            item["start_line"] == expected_start
-                            and item["end_line"] == expected_end
-                            for item in candidates
-                        )
-                        symbol_hits += int(symbol_ok)
-                    passed = path_ok and citation_ok and (
-                        symbol_ok is not False
-                    )
-                    category_counts[category]["passed"] += int(passed)
-                    details.append({
-                        "id": question["id"], "repository": name, "category": category,
-                        "expected_path": expected_path, "expected_range": [expected_start, expected_end],
-                        "rank_at_5": rank, "path_found": path_ok, "symbol_range_valid": symbol_ok,
-                        "citation_range_valid": citation_ok, "evidence_checks": evidence_checks,
-                        "passed": passed,
-                    })
-                else:
-                    evidence = answer.get("evidence") or []
-                    abstained = bool(answer.get("abstained")) and not evidence
-                    passed = abstained
-                    category_counts[category]["passed"] += int(passed)
-                    details.append({
-                        "id": question["id"], "repository": name, "category": category,
-                        "unsupported_abstained": abstained, "evidence_count": len(evidence),
-                        "passed": passed,
-                    })
-
-            positive_count, negative_count = len(positive), len(negative)
-            metrics = {
-                "positive_queries": positive_count,
-                "negative_queries": negative_count,
-                "symbol_range_cases": len(symbol_cases),
-                "recall_at_1": round(top1_hits / positive_count, 4) if positive_count else None,
-                "recall_at_5": round(path_hits / positive_count, 4) if positive_count else None,
-                "mrr_at_5": round(sum(reciprocal_ranks) / positive_count, 4) if positive_count else None,
-                "citation_range_validity": round(citation_hits / positive_count, 4) if positive_count else None,
-                "symbol_range_accuracy": round(symbol_hits / len(symbol_cases), 4) if symbol_cases else None,
-                "unsupported_abstention_rate": (
-                    round(sum(bool(item.get("unsupported_abstained")) for item in details
-                               if "unsupported_abstained" in item) / negative_count, 4)
-                    if negative_count else None
-                ),
-                "passed_cases": sum(bool(item["passed"]) for item in details),
-                "total_cases": len(details),
-            }
-            category_metrics = {
-                key: {
-                    "passed": value["passed"], "total": value["total"],
-                    "accuracy": round(value["passed"] / value["total"], 4),
-                }
-                for key, value in sorted(category_counts.items())
-            }
-            passed = all(item["passed"] for item in details)
-            report = {
-                "schema_version": 1,
-                "title": dataset.get("title"),
-                "dataset_version": dataset.get("version"),
-                "dataset_sha256": hashlib.sha256(dataset_bytes).hexdigest(),
-                "authoring": dataset.get("authoring"),
-                "repositories": dataset.get("repositories"),
-                "runtime": {"python": sys.version.split()[0], "platform": platform.platform()},
-                "metrics": metrics,
-                "category_metrics": category_metrics,
-                "passed": passed,
-                "results": details,
-                "limitations": [
-                    "Maintainer-authored expected ranges are not independent review; check authoring metadata.",
-                    "Lexical retrieval, valid source lines, and symbol spans do not prove semantic entailment.",
-                    "Unsupported-query scores depend on this curated set and do not establish general abstention safety.",
-                    "No LLM provider is called by this offline evaluator.",
-                ],
-            }
-            return report
+                for question in questions
+            ]
+            return _build_report(dataset, dataset_bytes, questions, details)
     finally:
         if previous_token is None:
             os.environ.pop("REP_PILOT_API_TOKEN", None)
