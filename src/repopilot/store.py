@@ -28,7 +28,6 @@ class Store:
         connection = sqlite3.connect(self.path, timeout=10)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys=ON")
-        connection.execute("PRAGMA journal_mode=WAL")
         try:
             yield connection
             connection.commit()
@@ -37,6 +36,10 @@ class Store:
 
     def _init_db(self) -> None:
         with self.connect() as db:
+            # Set WAL mode once during initialization, not on every connection.
+            # Reissuing this pragma on concurrent requests can contend for a schema
+            # lock before the actual transaction even starts.
+            db.execute("PRAGMA journal_mode=WAL")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS repositories (
                     id TEXT PRIMARY KEY, name TEXT NOT NULL, root_path TEXT NOT NULL UNIQUE,
@@ -335,17 +338,32 @@ class Store:
         return result
 
     def symbols(self, repo_id: str, query: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+        """Search symbol metadata by simple name, qualified name, kind, path, or signature."""
+        bounded_limit = max(1, min(limit, 200))
         with self.connect() as db:
-            if query:
+            if query and query.strip():
+                needle = query.strip().casefold()
                 rows = db.execute("""
                     SELECT name,qualified_name,kind,path,start_line,end_line,signature
-                    FROM symbols WHERE repository_id=? AND name LIKE ? ORDER BY name LIMIT ?
-                """, (repo_id, f"%{query}%", max(1, min(limit, 200)))).fetchall()
+                    FROM symbols
+                    WHERE repository_id=? AND (
+                        instr(lower(name), ?) > 0
+                        OR instr(lower(qualified_name), ?) > 0
+                        OR instr(lower(kind), ?) > 0
+                        OR instr(lower(path), ?) > 0
+                        OR instr(lower(signature), ?) > 0
+                    )
+                    ORDER BY
+                        CASE WHEN lower(qualified_name)=? THEN 0
+                             WHEN lower(name)=? THEN 1 ELSE 2 END,
+                        path,start_line
+                    LIMIT ?
+                """, (repo_id, needle, needle, needle, needle, needle, needle, needle, bounded_limit)).fetchall()
             else:
                 rows = db.execute("""
                     SELECT name,qualified_name,kind,path,start_line,end_line,signature
                     FROM symbols WHERE repository_id=? ORDER BY path,start_line LIMIT ?
-                """, (repo_id, max(1, min(limit, 200)))).fetchall()
+                """, (repo_id, bounded_limit)).fetchall()
             return [dict(row) for row in rows]
 
     def get_file(self, repo_id: str, path: str) -> dict[str, Any] | None:
