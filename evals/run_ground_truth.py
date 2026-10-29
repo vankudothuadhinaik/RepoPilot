@@ -78,7 +78,6 @@ def evaluate(root: Path) -> dict[str, Any]:
                 path_ok = rank is not None
                 if path_ok:
                     path_hits += 1
-                    category_counts[category]["passed"] += 1
                     if rank == 1:
                         top1_hits += 1
                     reciprocal_ranks.append(1.0 / rank)
@@ -113,6 +112,7 @@ def evaluate(root: Path) -> dict[str, Any]:
                     for evidence in ask.json()["evidence"]
                 )
                 citation_hits += int(citation_ok)
+                category_counts[category]["passed"] += int(path_ok and symbol_ok and citation_ok)
                 details.append({"id": question["id"], "category": category, "rank": rank, "path": path_ok,
                                 "symbol": symbol_ok, "symbol_candidates": symbol_candidates, "citation": citation_ok})
             else:
