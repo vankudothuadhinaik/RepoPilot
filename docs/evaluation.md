@@ -26,3 +26,15 @@ Before a broader release claim, add a reviewed and independently authored questi
 - Comparison of keyword retrieval against any later hybrid or embedding implementation.
 
 Publish the raw results and methodology, including corpus provenance and limitations. Never invent or extrapolate a score from the synthetic benchmark.
+
+## Multi-repository performance runs
+
+To compare multiple local repositories with the same methodology, run:
+
+```bash
+PYTHONPATH=src python evals/benchmark_matrix.py /path/to/repo-small /path/to/repo-medium /path/to/repo-large --output benchmark-matrix.json
+```
+
+The matrix runner records each repository's file count/bytes, first scan and persistence time, unchanged incremental scan/persistence time, fixed-query median/p95 latency, database size, scan errors, and Python-tracked peak allocations. Choose repositories that you are authorized to inspect and record their provenance and machine/runtime details when publishing results. The tool does not assign size categories automatically; label categories only when the file counts/bytes and selection criteria are disclosed.
+
+This expands the repeatable measurement workflow but does not itself supply an independently curated retrieval-question set, run an external corpus, or measure semantic citation correctness. Those require separate datasets and, for LLM metrics, controlled provider runs.
