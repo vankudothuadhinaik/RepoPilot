@@ -354,12 +354,12 @@
     {
       "id": "multirepo-positive-015",
       "repository": "matching-engine",
-      "query": "cancelOrder pool_.release",
+      "query": "cancelOrder orders_.find id",
       "expected_path": "src/OrderBook.cpp",
-      "expected_start_line": 86,
-      "expected_end_line": 86,
+      "expected_start_line": 79,
+      "expected_end_line": 80,
       "category": "order_lifecycle",
-      "expected_fact": "Cancellation removes order and returns its object to the pool"
+      "expected_fact": "Cancellation checks whether the order ID exists before changing the book"
     },
     {
       "id": "multirepo-positive-016",
