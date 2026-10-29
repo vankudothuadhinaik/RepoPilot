@@ -37,24 +37,66 @@ def language_for(path: Path) -> str:
 
 
 def parse_python(path: str, content: str) -> list[dict[str, Any]]:
+    """Extract Python definitions with lexical qualified names and readable signatures."""
     try:
         tree = ast.parse(content)
     except SyntaxError:
         return []
-    symbols: list[dict[str, Any]] = []
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            kind = "class" if isinstance(node, ast.ClassDef) else "function"
-            symbols.append({
+
+    class DefinitionVisitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.scope: list[str] = []
+            self.symbols: list[dict[str, Any]] = []
+
+        @staticmethod
+        def signature(node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) -> str:
+            if isinstance(node, ast.ClassDef):
+                bases = [ast.unparse(base) for base in node.bases]
+                return f"class {node.name}({', '.join(bases)})" if bases else f"class {node.name}"
+            prefix = "async " if isinstance(node, ast.AsyncFunctionDef) else ""
+            arguments = ast.unparse(node.args)
+            result = f"{prefix}{node.name}({arguments})"
+            if node.returns is not None:
+                result += f" -> {ast.unparse(node.returns)}"
+            return result
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            self._record(node, "class")
+            self.scope.append(node.name)
+            for child in node.body:
+                self.visit(child)
+            self.scope.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self._record(node, "function")
+            self.scope.append(node.name)
+            for child in node.body:
+                self.visit(child)
+            self.scope.pop()
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self._record(node, "function")
+            self.scope.append(node.name)
+            for child in node.body:
+                self.visit(child)
+            self.scope.pop()
+
+        def _record(
+            self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef, kind: str
+        ) -> None:
+            self.symbols.append({
                 "name": node.name,
-                "qualified_name": node.name,
+                "qualified_name": ".".join([*self.scope, node.name]),
                 "kind": kind,
                 "path": path,
                 "start_line": int(node.lineno),
                 "end_line": int(getattr(node, "end_lineno", node.lineno)),
-                "signature": node.name,
+                "signature": self.signature(node),
             })
-    return sorted(symbols, key=lambda item: (item["start_line"], item["name"]))
+
+    visitor = DefinitionVisitor()
+    visitor.visit(tree)
+    return sorted(visitor.symbols, key=lambda item: (item["start_line"], item["qualified_name"]))
 
 
 def extract_imports(path: str, content: str, language: str) -> list[dict[str, str]]:
