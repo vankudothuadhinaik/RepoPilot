@@ -8,4 +8,4 @@ RUN useradd --create-home --uid 10001 appuser && mkdir -p /data && chown -R appu
 USER appuser
 ENV REP_PILOT_DATA_DIR=/data
 EXPOSE 8000
-CMD ["uvicorn", "repopilot.api:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "if [ -z \"$REP_PILOT_API_TOKEN\" ]; then echo \"REP_PILOT_API_TOKEN is required for container use\" >&2; exit 1; fi; exec uvicorn repopilot.api:app --host 0.0.0.0 --port 8000"]

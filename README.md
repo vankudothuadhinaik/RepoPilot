@@ -104,11 +104,23 @@ Open the local Vite URL printed by the command. The dashboard can register local
 
 ## Docker
 
-```bash
+The container requires an API bearer token because it listens on the container network interface.
+
+PowerShell:
+
+```powershell
+$env:REP_PILOT_API_TOKEN = python -c "import secrets; print(secrets.token_urlsafe(32))"
 docker compose up --build
 ```
 
-The Compose service binds to loopback, drops Linux capabilities, uses a read-only root filesystem, and persists its database in a named volume. Do not expose the unauthenticated API to the public internet.
+macOS/Linux:
+
+```bash
+export REP_PILOT_API_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+docker compose up --build
+```
+
+The Compose service binds to host loopback, drops Linux capabilities, uses a read-only root filesystem, and persists its database in a named volume. Send `Authorization: Bearer YOUR_TOKEN` on `/api/*` requests. Store production tokens in a secret manager such as Doppler; never commit the token to source control.
 
 ## Optional MCP
 
@@ -121,7 +133,7 @@ See [`docs/mcp-setup.md`](docs/mcp-setup.md) and [`docs/llm-providers.md`](docs/
 
 ## Security and privacy
 
-Read [`SECURITY.md`](SECURITY.md) and [`docs/threat-model.md`](docs/threat-model.md). Repository content is untrusted input. This MVP does not execute shell commands or apply patches. The API has no authentication; use loopback only. Common secret-bearing paths are excluded, but users must review exclusions before indexing sensitive repositories.
+Read [`SECURITY.md`](SECURITY.md) and [`docs/threat-model.md`](docs/threat-model.md). Repository content is untrusted input. This MVP does not execute shell commands or apply patches. The API supports optional bearer-token protection; the container requires a token and Compose binds to loopback. This shared token is not a substitute for identity, roles, TLS, or a security review. Common secret-bearing paths are excluded, but users must review exclusions before indexing sensitive repositories.
 
 ## Architecture
 
