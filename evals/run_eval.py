@@ -18,7 +18,7 @@ def run_smoke(store: Store, temp: Path) -> dict[str, Any]:
     root.mkdir()
     (root / ".git").mkdir()
     (root / "app.py").write_text(
-        "def greet(name):\\n    return name\\nclass Service:\\n    pass\\n",
+        "def greet(name):\n    return name\nclass Service:\n    pass\n",
         encoding="utf-8",
     )
     repo = store.index(index_repository(root))
@@ -139,7 +139,7 @@ def main() -> None:
         }
         rendered = json.dumps(report, indent=2, sort_keys=True)
         Path("retrieval_benchmark_results.json").write_text(
-            rendered + "\\n", encoding="utf-8"
+            rendered + "\n", encoding="utf-8"
         )
         print(rendered)
         if smoke["passed"] != smoke["total"] or not benchmark["passed"]:
