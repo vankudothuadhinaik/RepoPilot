@@ -32,7 +32,8 @@ function App() {
   const [answer, setAnswer] = React.useState("");
   const [apiToken, setApiToken] = React.useState("");
   const [message, setMessage] = React.useState("Connect to your local RepoPilot API.");
-  const [busy, setBusy] = React.useState(false);\n  const requestSequence = React.useRef(0);
+  const [busy, setBusy] = React.useState(false);
+  const requestSequence = React.useRef(0);
   const authHeaders = (): Record<string, string> => apiToken ? { Authorization: `Bearer ${apiToken}` } : {};
   const authMessage = "Authentication required (401). Enter the configured local API token, then select Connect / refresh.";
 
@@ -54,6 +55,7 @@ function App() {
   React.useEffect(() => { void refresh(); }, []);
 
   function selectRepository(id: string) {
+    requestSequence.current += 1;
     setSelected(id);
     setResults([]);
     setEvidence([]);
@@ -109,6 +111,8 @@ function App() {
   async function search(event: React.FormEvent) {
     event.preventDefault();
     if (!selected || !query.trim()) return;
+    const requestId = ++requestSequence.current;
+    const repositoryId = selected;
     setBusy(true);
     setEvidence([]);
     setAnswer("");
@@ -119,19 +123,23 @@ function App() {
         body: JSON.stringify({ question: query, limit: 12 }),
       });
       const data = await response.json();
+      if (requestId !== requestSequence.current) return;
       if (!response.ok) throw new Error(data.detail ?? "Search failed");
       setResults(data.results);
       setMessage(`${data.result_count} result(s)`);
     } catch (error) {
+      if (requestId !== requestSequence.current) return;
       setMessage(error instanceof Error ? error.message : "Search failed");
     } finally {
-      setBusy(false);
+      if (requestId === requestSequence.current) setBusy(false);
     }
   }
 
   async function ask(event: React.FormEvent) {
     event.preventDefault();
     if (!selected || !query.trim()) return;
+    const requestId = ++requestSequence.current;
+    const repositoryId = selected;
     setBusy(true);
     setResults([]);
     try {
@@ -141,14 +149,16 @@ function App() {
         body: JSON.stringify({ question: query, limit: 8 }),
       });
       const data = await response.json();
+      if (requestId !== requestSequence.current) return;
       if (!response.ok) throw new Error(data.detail ?? "Evidence retrieval failed");
       setAnswer(data.answer);
       setEvidence(data.evidence);
       setMessage(data.abstained ? "No verifiable evidence found" : `${data.evidence.length} evidence citation(s)`);
     } catch (error) {
+      if (requestId !== requestSequence.current) return;
       setMessage(error instanceof Error ? error.message : "Evidence retrieval failed");
     } finally {
-      setBusy(false);
+      if (requestId === requestSequence.current) setBusy(false);
     }
   }
 
