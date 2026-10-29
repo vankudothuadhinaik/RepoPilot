@@ -16,7 +16,8 @@ RepoPilot aims to help developers understand unfamiliar repositories, find relev
 - Python import relationship extraction.
 - SQLite metadata and FTS5 full-text search.
 - Search, symbols, graph, file evidence, and memory CRUD API endpoints.
-- Evidence retrieval endpoint with line-numbered snippets, source hashes, and indexed commit metadata; it explicitly does **not** pretend to generate a semantic LLM answer.
+- Evidence retrieval endpoint with line-numbered snippets, source hashes, and indexed commit metadata.
+- Optional OpenAI-compatible answers with citations validated against retrieved source paths; falls back to retrieval-only when unconfigured or provider output fails validation.
 - Optional MCP tools for repository listing, code search, symbol lookup, overview, and memory retrieval.
 - Unit/API/security regression tests, GitHub Actions CI, Dependabot, Docker, and Compose. CodeQL analysis runs in CI, but results are not uploaded as code-scanning alerts because GitHub code scanning is not enabled for this private repository.
 - Architecture, threat model, API, MCP, evaluation, and troubleshooting docs.
@@ -24,7 +25,7 @@ RepoPilot aims to help developers understand unfamiliar repositories, find relev
 ## Not implemented yet
 
 - Semantic embeddings or reranking.
-- LLM-generated explanations and provider adapters.
+- Additional LLM provider adapters beyond the OpenAI-compatible chat-completions interface.
 - Complete Java/C++/TypeScript symbol and call-graph analysis.
 - Incremental per-file re-indexing (the current implementation replaces one repository's index).
 - Background indexing jobs.
@@ -116,7 +117,7 @@ pip install -e ".[mcp]"
 python -m repopilot.mcp_server
 ```
 
-See [`docs/mcp-setup.md`](docs/mcp-setup.md).
+See [`docs/mcp-setup.md`](docs/mcp-setup.md) and [`docs/llm-providers.md`](docs/llm-providers.md).
 
 ## Security and privacy
 
