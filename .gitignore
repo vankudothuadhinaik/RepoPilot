@@ -25,4 +25,4 @@ validation_benchmark_matrix.json
 
 # Evaluation fixtures and labels must never be indexed as application source.
 evals/corpora/
-evals/datasets/ground_truth_multirepo.json
+evals/datasets/
