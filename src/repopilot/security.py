@@ -86,6 +86,10 @@ def _matches_gitignore(root: Path, path: Path, patterns: list[str]) -> bool:
                 or (directory_only and target.startswith(pattern + "/"))
                 for target in targets
             )
+            # A negated basename can re-include a file matched by a wildcard
+            # earlier in the same ignore file. Match the basename explicitly.
+            if negated and not has_slash:
+                matched = fnmatch.fnmatchcase(path.name, pattern)
             if matched:
                 if negated:
                     # Git cannot re-include a child while its parent is excluded.
