@@ -54,7 +54,7 @@ def test_safe_read_rejects_symlinked_parent_directory(fixture_repo, tmp_path):
     outside = tmp_path / "outside"
     outside.mkdir()
     target = outside / "module.py"
-    target.write_text("def outside_secret(): pass\\n", encoding="utf-8")
+    target.write_text("def outside_secret(): pass\n", encoding="utf-8")
     link = fixture_repo / "linked_dir"
     try:
         link.symlink_to(outside, target_is_directory=True)
@@ -75,5 +75,5 @@ def test_safe_read_accepts_regular_bounded_file(fixture_repo):
     from repopilot.security import read_safe_text
 
     target = fixture_repo / "safe.py"
-    target.write_text("def safe_function(): return 1\\n", encoding="utf-8")
-    assert read_safe_text(target, root=fixture_repo) == "def safe_function(): return 1\\n"
+    target.write_text("def safe_function(): return 1\n", encoding="utf-8")
+    assert read_safe_text(target, root=fixture_repo) == "def safe_function(): return 1\n"
