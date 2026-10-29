@@ -12,7 +12,7 @@
     {
       "id": "RepoPilot",
       "upstream": "https://github.com/vankudothuadhinaik/RepoPilot",
-      "commit": "8f9a8c9",
+      "commit": "8f9a8c92385c1fd23156f0e5fa32bf7673842574",
       "snapshot": "checked-out root supplied with --root"
     },
     {
@@ -87,8 +87,8 @@
       "query": "read_safe_text open file descriptor nofollow",
       "expected_path": "src/repopilot/security.py",
       "expected_symbol": "read_safe_text",
-      "expected_start_line": 238,
-      "expected_end_line": 330,
+      "expected_start_line": 236,
+      "expected_end_line": 328,
       "category": "filesystem_safety",
       "repository": "RepoPilot"
     },
@@ -354,12 +354,12 @@
     {
       "id": "multirepo-positive-015",
       "repository": "matching-engine",
-      "query": "addOrder orders contains id price quantity",
+      "query": "pool acquire orders emplace queue push_back",
       "expected_path": "src/OrderBook.cpp",
-      "expected_start_line": 12,
-      "expected_end_line": 12,
-      "category": "order_validation",
-      "expected_fact": "Order insertion rejects invalid prices, zero quantities, and duplicate identifiers"
+      "expected_start_line": 16,
+      "expected_end_line": 22,
+      "category": "order_storage",
+      "expected_fact": "Accepted orders are stored in the order map and placed on the appropriate price-level queue."
     },
     {
       "id": "multirepo-positive-016",
@@ -394,7 +394,7 @@
     {
       "id": "multirepo-negative-001",
       "repository": "RepoPilot",
-      "query": "which constellation stores geothermal yogurt",
+      "query": "tesseract qelvorn",
       "expected_path": null,
       "expected_symbol": null,
       "expected_start_line": null,
@@ -404,7 +404,7 @@
     {
       "id": "multirepo-negative-002",
       "repository": "RepoPilot",
-      "query": "who won the fictional orbital chess championship",
+      "query": "mavrix zundel",
       "expected_path": null,
       "expected_symbol": null,
       "expected_start_line": null,

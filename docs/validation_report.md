@@ -2,16 +2,16 @@
 
 ## Scope and reproducibility
 
-The final local-validation workflow fix is committed on `main` as `d1acc07e1c34cd8ba9a4b6ad1d640c853756b961`. Local validation was performed on Windows 11 with Python 3.14.8 and Docker Desktop.
+The audited baseline was `8645ac8fd28ba14365a0e61269bee015eb3db778` on `main`. Local validation was performed on Windows 11 with Python 3.14.8 and Docker Desktop. Dataset corrections and evaluator corpus-isolation fixes are recorded in `docs/evaluation_audit.md` and the associated follow-up commit.
 
 - The prior baseline [CI run](https://github.com/vankudothuadhinaik/RepoPilot/actions/runs/40926370963) and [CodeQL run](https://github.com/vankudothuadhinaik/RepoPilot/actions/runs/40926370962) passed for `8f9a8c9`.
-- The final commit's CI, CodeQL, and Codecov results are queued or in progress at the [CI workflow](https://github.com/vankudothuadhinaik/RepoPilot/actions/workflows/ci.yml?query=branch%3Amain) and [CodeQL workflow](https://github.com/vankudothuadhinaik/RepoPilot/actions/workflows/codeql.yml?query=branch%3Amain); no final remote result is claimed yet.
-- Local validation passed 88 Python tests with 77% total coverage, Ruff, Mypy, compilation, the synthetic evaluator, the 15-case ground-truth evaluator, the 41-case multi-repository evaluator, the pinned snapshot performance matrix, frontend install/audit/build, Compose validation, and Docker startup/authentication checks.
+- Remote CI, CodeQL, and Codecov status was not re-queried during this local audit; no current remote result is claimed here. The workflow URLs in this document are entry points, not evidence for this uncommitted review tree.
+- Local validation passed the previously recorded 88 Python tests with 77% total coverage, Ruff, Mypy, compilation, the synthetic evaluator, frontend install/audit/build, Compose validation, and Docker startup/authentication checks. The focused post-audit suite passed 14 tests; the corrected 15-case evaluator passed 15/15 and the corrected 41-case evaluator passed 41/41. The complete rerun evidence and metric denominators are in [the evaluation audit](evaluation_audit.md).
 - The Windows security/indexer subset passed 28 tests and covered the changed Windows descriptor path. CI now uploads Windows coverage alongside Ubuntu coverage; thresholds remain 65% project and 60% patch.
 
 ## Offline source-grounded evaluation
 
-The versioned multi-repository set has 41 cases across four pinned snapshots: 31 positive expected-range cases and 10 unsupported queries.
+The versioned multi-repository set has 41 cases across four recorded source revisions: 31 positive expected-range cases and 10 unsupported queries. Three external snapshots are materialized from embedded snapshot metadata; the RepoPilot entry is materialized from its recorded Git revision by default, with checkout-relative evaluation available only through the explicit `--use-checkout` option.
 
 | Metric | Result |
 |---|---:|
@@ -23,7 +23,7 @@ The versioned multi-repository set has 41 cases across four pinned snapshots: 31
 | Unsupported-query abstention | 100% (10/10) |
 | Total cases passing | 41/41 |
 
-These are curated, maintainer-authored cases. Independent second-person review is pending; the metrics do not prove semantic entailment or production accuracy.
+These are curated, maintainer-authored cases. The audit corrected an overclaimed fact, expanded abbreviated source metadata, removed one duplicate positive, replaced two lexically ambiguous negative queries, and fixed evaluator self-reference of the audit report. Independent second-person review is pending; the metrics do not prove semantic entailment or production accuracy.
 
 ## Live provider evaluation
 

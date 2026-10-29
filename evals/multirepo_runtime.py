@@ -76,14 +76,16 @@ def _load_dataset(dataset_path: Path) -> EvaluationDataset:
 
 
 def _run_offline_evaluation(
-    root: Path, dataset: EvaluationDataset
+    root: Path, dataset: EvaluationDataset, *, use_checkout: bool = False
 ) -> dict[str, Any]:
     token = "multirepo-ground-truth-local-token"
     with tempfile.TemporaryDirectory(prefix="repopilot-multirepo-eval-") as temporary:
         temporary_root = Path(temporary)
         os.environ["REP_PILOT_API_TOKEN"] = token
         os.environ["REP_PILOT_DATA_DIR"] = str(temporary_root / "data")
-        corpus_roots = _prepare_corpora(root, dataset.repositories, temporary_root)
+        corpus_roots = _prepare_corpora(
+            root, dataset.repositories, temporary_root, use_checkout=use_checkout
+        )
         from fastapi.testclient import TestClient
 
         from repopilot.api import app
@@ -103,18 +105,27 @@ def _run_offline_evaluation(
             )
             for question in dataset.questions
         ]
-        return _build_report(dataset.data, dataset.raw_bytes, dataset.questions, details)
+        report = _build_report(dataset.data, dataset.raw_bytes, dataset.questions, details)
+        report["source_mode"] = "checkout_relative" if use_checkout else "git_revision"
+        report["repo_pilot_revision_verified"] = not use_checkout
+        return report
 
 
-def evaluate(root: Path, dataset_path: Path | None = None) -> dict[str, Any]:
-    """Run the deterministic multi-repository evaluation without an LLM provider."""
+def evaluate(
+    root: Path, dataset_path: Path | None = None, *, use_checkout: bool = False
+) -> dict[str, Any]:
+    """Run the deterministic evaluation without an LLM provider.
+
+    By default RepoPilot is materialized from the dataset's exact Git revision.
+    ``use_checkout`` is an explicit opt-in for evaluating proposed worktree changes.
+    """
     root = root.expanduser().resolve(strict=True)
     path = dataset_path or Path(__file__).parent / "datasets" / "ground_truth_multirepo.json"
     dataset = _load_dataset(path)
     previous_token = os.environ.get("REP_PILOT_API_TOKEN")
     previous_data_dir = os.environ.get("REP_PILOT_DATA_DIR")
     try:
-        return _run_offline_evaluation(root, dataset)
+        return _run_offline_evaluation(root, dataset, use_checkout=use_checkout)
     finally:
         if previous_token is None:
             os.environ.pop("REP_PILOT_API_TOKEN", None)

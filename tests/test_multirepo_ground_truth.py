@@ -53,6 +53,10 @@ def test_clean_root_excludes_all_ground_truth_and_fixture_data(tmp_path):
     (root / "evals" / "corpora" / "sample").mkdir(parents=True)
     (root / "src").mkdir()
     (root / "README.md").write_text("# Fixture checkout\n", encoding="utf-8")
+    (root / "docs").mkdir()
+    (root / "docs" / "evaluation_audit.md").write_text(
+        "ground-truth labels and unsupported query text", encoding="utf-8"
+    )
     (root / "src" / "app.py").write_text("def main():\n    return 1\n", encoding="utf-8")
     (root / "evals" / "datasets" / "ground_truth.json").write_text("{}", encoding="utf-8")
     (root / "evals" / "datasets" / "ground_truth_multirepo.json").write_text("{}", encoding="utf-8")
@@ -64,6 +68,37 @@ def test_clean_root_excludes_all_ground_truth_and_fixture_data(tmp_path):
     assert not (destination / "evals" / "datasets" / "ground_truth.json").exists()
     assert not (destination / "evals" / "datasets" / "ground_truth_multirepo.json").exists()
     assert not (destination / "evals" / "corpora").exists()
+    assert not (destination / "docs" / "evaluation_audit.md").exists()
+
+
+def test_repo_pilot_materializes_recorded_revision_and_rejects_missing_revision(tmp_path):
+    import subprocess
+    from pathlib import Path
+
+    from evals.multirepo_corpus import _prepare_corpus
+
+    root = Path(__file__).resolve().parents[1]
+    revision = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    metadata = {"id": "RepoPilot", "commit": revision}
+    destination = _prepare_corpus(root, "RepoPilot", metadata, tmp_path / "eval")
+
+    assert (destination / "src" / "repopilot").is_dir()
+    assert not (destination / ".git").exists()
+    assert not (destination / "evals" / "datasets" / "ground_truth.json").exists()
+    assert not (destination / "docs" / "evaluation_audit.md").exists()
+
+    with pytest.raises(ValueError, match="required RepoPilot source revision"):
+        _prepare_corpus(
+            root,
+            "RepoPilot",
+            {"id": "RepoPilot", "commit": "0" * 40},
+            tmp_path / "missing",
+        )
 
 
 def test_materialize_snapshot_checks_revision_and_rejects_traversal(tmp_path):

@@ -63,7 +63,7 @@
       "expected_end_line": 131,
       "category": "filesystem_safety",
       "repository": "RepoPilot",
-      "expected_fact": "Repository root validation prevents traversal outside the permitted root.",
+      "expected_fact": "Repository root validation requires an existing directory with a repository marker.",
       "expected_fact_anchor": "def safe_repository_root",
       "source_revision": "773b4de9ddc72f611763cb642c25ba2ea9e7b4dc"
     },
@@ -78,7 +78,7 @@
       "repository": "RepoPilot",
       "expected_fact": "Safe file reads use handle-based checks and no-follow semantics.",
       "expected_fact_anchor": "def read_safe_text",
-      "source_revision": "8f9a8c9"
+      "source_revision": "8645ac8fd28ba14365a0e61269bee015eb3db778"
     },
     {
       "id": "ground-truth-008",

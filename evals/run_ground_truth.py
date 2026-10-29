@@ -49,9 +49,13 @@ def evaluate(root: Path) -> dict[str, Any]:
                 "provider-evaluation.json", "coverage.xml",
             ),
         )
-        ground_truth_file = corpus_root / "evals" / "datasets" / "ground_truth.json"
-        if ground_truth_file.is_file():
-            ground_truth_file.unlink()
+        # Keep labels and audit narratives out of the indexed corpus. The audit
+        # report repeats expected facts and unsupported queries, so indexing it
+        # would create self-referential evidence and invalidate abstention tests.
+        for relative in ("evals/datasets/ground_truth.json", "docs/evaluation_audit.md"):
+            candidate = corpus_root / relative
+            if candidate.is_file():
+                candidate.unlink()
 
         from fastapi.testclient import TestClient
 

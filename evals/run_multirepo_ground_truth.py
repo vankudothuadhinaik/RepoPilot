@@ -20,8 +20,13 @@ def main() -> None:
         help="Versioned multi-repository dataset JSON",
     )
     parser.add_argument("--output", type=Path, default=None, help="Optional JSON report destination")
+    parser.add_argument(
+        "--use-checkout",
+        action="store_true",
+        help="Explicitly evaluate the supplied worktree instead of the pinned RepoPilot revision",
+    )
     args = parser.parse_args()
-    report = evaluate(args.root, args.dataset)
+    report = evaluate(args.root, args.dataset, use_checkout=args.use_checkout)
     rendered = json.dumps(report, indent=2, sort_keys=True)
     print(rendered)
     if args.output:

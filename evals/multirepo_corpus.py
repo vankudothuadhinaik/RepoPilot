@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
+import tarfile
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +61,21 @@ def _query(question: dict[str, Any]) -> str:
     return "".join(chr(value) for value in question.get("query_codepoints", []))
 
 
+def _remove_evaluation_artifacts(destination: Path) -> None:
+    eval_dir = destination / "evals"
+    for relative in (
+        "datasets/ground_truth.json",
+        "datasets/ground_truth_multirepo.json",
+        "datasets/retrieval_50.json",
+    ):
+        candidate = eval_dir / relative
+        if candidate.is_file():
+            candidate.unlink()
+    audit_report = destination / "docs" / "evaluation_audit.md"
+    if audit_report.is_file():
+        audit_report.unlink()
+
+
 def _clean_root(root: Path, destination: Path) -> None:
     shutil.copytree(
         root,
@@ -69,15 +87,54 @@ def _clean_root(root: Path, destination: Path) -> None:
             "provider-evaluation.json", "coverage.xml",
         ),
     )
-    eval_dir = destination / "evals"
-    for relative in (
-        "datasets/ground_truth.json",
-        "datasets/ground_truth_multirepo.json",
-        "datasets/retrieval_50.json",
-    ):
-        candidate = eval_dir / relative
-        if candidate.is_file():
-            candidate.unlink()
+    _remove_evaluation_artifacts(destination)
+
+
+def _materialize_repo_revision(root: Path, revision: str, destination: Path) -> Path:
+    """Materialize an exact local Git revision without copying the worktree."""
+    if len(revision) != 40 or any(character not in "0123456789abcdef" for character in revision.lower()):
+        raise ValueError(f"RepoPilot source revision must be a full SHA: {revision!r}")
+    try:
+        subprocess.run(
+            ["git", "-C", str(root), "cat-file", "-e", f"{revision}^{{commit}}"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        archive = subprocess.run(
+            ["git", "-C", str(root), "archive", "--format=tar", revision],
+            check=True,
+            capture_output=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise ValueError(
+            f"required RepoPilot source revision {revision!r} is unavailable in {root}"
+        ) from exc
+
+    destination.mkdir(parents=True)
+    with tarfile.open(fileobj=BytesIO(archive.stdout), mode="r:") as bundle:
+        for member in bundle.getmembers():
+            relative = Path(member.name)
+            if (
+                relative.is_absolute()
+                or ".." in relative.parts
+                or "\\" in member.name
+                or not (member.isdir() or member.isfile())
+            ):
+                raise ValueError("Git source archive contains an unsafe path")
+            target = (destination / relative).resolve()
+            if not target.is_relative_to(destination.resolve()):
+                raise ValueError("Git source archive contains an unsafe path")
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                source = bundle.extractfile(member)
+                if source is None:
+                    raise ValueError("Git source archive contains an unreadable file")
+                target.write_bytes(source.read())
+    _remove_evaluation_artifacts(destination)
+    return destination
 
 
 def _validate_snapshot_metadata(
@@ -136,20 +193,34 @@ def _prepare_external_corpus(
 
 
 def _prepare_corpus(
-    root: Path, name: str, metadata: dict[str, Any], temporary_root: Path
+    root: Path,
+    name: str,
+    metadata: dict[str, Any],
+    temporary_root: Path,
+    *,
+    use_checkout: bool = False,
 ) -> Path:
     destination = temporary_root / "corpus" / name
     if name == "RepoPilot":
-        _clean_root(root, destination)
+        if use_checkout:
+            _clean_root(root, destination)
+        else:
+            _materialize_repo_revision(root, str(metadata["commit"]), destination)
         return destination
     return _prepare_external_corpus(root, name, metadata, destination)
 
 
 def _prepare_corpora(
-    root: Path, repositories: dict[str, dict[str, Any]], temporary_root: Path
+    root: Path,
+    repositories: dict[str, dict[str, Any]],
+    temporary_root: Path,
+    *,
+    use_checkout: bool = False,
 ) -> dict[str, Path]:
     return {
-        name: _prepare_corpus(root, name, metadata, temporary_root)
+        name: _prepare_corpus(
+            root, name, metadata, temporary_root, use_checkout=use_checkout
+        )
         for name, metadata in repositories.items()
     }
 
