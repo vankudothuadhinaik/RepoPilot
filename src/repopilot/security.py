@@ -94,7 +94,7 @@ def _matches_gitignore(root: Path, path: Path, patterns: list[str]) -> bool:
                 continue
             result = spec.check_file(candidate)
             if result.include is not None:
-                ignored = not result.include
+                ignored = result.include
 
         if ignored:
             return True
