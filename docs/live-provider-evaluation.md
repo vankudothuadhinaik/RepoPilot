@@ -16,3 +16,6 @@ Do not commit provider keys, raw prompts containing private source code, or prov
 
 
 Provider failures are represented by redacted categories such as `provider_timeout`, `provider_http_error`, `provider_connection_error`, `malformed_provider_response`, and `provider_response_rejected`. The report includes per-case outcomes and aggregate error/timeout counts; it deliberately excludes exception messages, response bodies, and API keys. A provider hostname and configured model name are configuration metadata, not proof of the exact model build serving the request.
+
+
+The baseline question set is versioned and records upstream commit provenance, per-question expected facts, expected symbol/range, and a source anchor for each positive case. The provider report includes the dataset SHA-256, configured model, provider hostname (when parseable), runtime, per-case expected-range coverage, symbol-range checks, exact-quote support against the cited evidence, and aggregate denominators. The fact anchor is an automated structural check only: it confirms the expected source anchor exists in the pinned range; it does not judge whether generated natural-language claims are semantically correct. The dataset's independent second-person review remains pending.
