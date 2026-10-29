@@ -93,6 +93,10 @@ def test_search_filters_are_applied_before_limit_and_use_directory_boundaries(fi
 
 
 def test_parser_version_change_rebuilds_unchanged_symbol_records(fixture_repo, store):
+    (fixture_repo / "app.py").write_text(
+        "class Service:\\n    def greet(self, name: str) -> str:\\n        return name\\n",
+        encoding="utf-8",
+    )
     snapshot = index_repository(fixture_repo)
     snapshot["parser_version"] = "1"
     for symbol in snapshot["symbols"]:
