@@ -110,19 +110,20 @@ class Store:
             repo_id = existing["id"] if existing else str(uuid.uuid4())
             parser_version = data.get("parser_version", PARSER_VERSION)
             parser_changed = bool(existing and existing["parser_version"] != parser_version)
+            indexed_status = "partial" if data.get("errors") else "indexed"
 
             db.execute(
                 """
                 INSERT INTO repositories(id,name,root_path,branch,indexed_commit,status,indexed_at,
                     file_count,symbol_count,errors_json,parser_version)
-                VALUES(?,?,?,?,?,'indexed',?,?,?,?,?)
+                VALUES(?,?,?,?,?,?, ?,?,?,?,?)
                 ON CONFLICT(root_path) DO UPDATE SET
                     name=excluded.name, branch=excluded.branch, indexed_commit=excluded.indexed_commit,
                     status=excluded.status, indexed_at=excluded.indexed_at,
                     errors_json=excluded.errors_json, parser_version=excluded.parser_version
                 """,
                 (
-                    repo_id, data["name"], data["root"], data["branch"], data["commit"], now(),
+                    repo_id, data["name"], data["root"], data["branch"], data["commit"], indexed_status, now(),
                     len(data["files"]), 0, json.dumps(data["errors"]), parser_version,
                 ),
             )
