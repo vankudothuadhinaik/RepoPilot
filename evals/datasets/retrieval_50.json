@@ -1,7 +1,7 @@
 {
   "title": "RepoPilot synthetic retrieval benchmark",
-  "version": 1,
-  "description": "Fifteen hand-authored synthetic source files across three repositories; 45 targeted retrieval queries and five negative queries. Measures lexical retrieval behavior only, not semantic answer quality or real-world generalization.",
+  "version": 2,
+  "description": "Seventeen hand-authored synthetic source files across three repositories; 46 targeted retrieval queries and five negative queries. Includes identifier-tokenization and path-ranking regressions. Measures lexical retrieval behavior only, not semantic answer quality or real-world generalization.",
   "repositories": {
     "backend": {
       "src/auth.py": "Bearer credential rotation token validation rejects expired credentials and records authentication failures.",
