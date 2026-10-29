@@ -153,6 +153,19 @@ jobs:
           test "$authenticated_status" = "200"
 
 
+  windows-security:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+      - name: Test Windows file safety and indexing
+        run: python -m pytest tests/test_security.py tests/test_indexer.py
+
+
   optional-mcp:
     runs-on: ubuntu-latest
     steps:
