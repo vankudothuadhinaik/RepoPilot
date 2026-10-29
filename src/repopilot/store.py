@@ -88,10 +88,27 @@ class Store:
             )
 
     def index(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Persist a repository snapshot while writing only changed file records.
+
+        The scanner still walks the working tree, but unchanged file bodies and
+        FTS entries are left untouched. Symbol/import rows are refreshed only
+        for paths whose content changed or disappeared.
+        """
+        incoming_files = {item["path"]: item for item in data["files"]}
+        symbols_by_path: dict[str, list[dict[str, Any]]] = {}
+        imports_by_path: dict[str, list[dict[str, str]]] = {}
+        for item in data["symbols"]:
+            symbols_by_path.setdefault(item["path"], []).append(item)
+        for item in data["imports"]:
+            imports_by_path.setdefault(item["source"], []).append(item)
+
         with self.connect() as db:
-            existing = db.execute("SELECT id FROM repositories WHERE root_path=?", (data["root"],)).fetchone()
+            existing = db.execute(
+                "SELECT id FROM repositories WHERE root_path=?", (data["root"],)
+            ).fetchone()
             repo_id = existing["id"] if existing else str(uuid.uuid4())
-            db.execute("""
+            db.execute(
+                """
                 INSERT INTO repositories(id,name,root_path,branch,indexed_commit,status,indexed_at,
                     file_count,symbol_count,errors_json)
                 VALUES(?,?,?,?,?,'indexed',?,?,?,?)
@@ -99,30 +116,95 @@ class Store:
                     name=excluded.name, branch=excluded.branch, indexed_commit=excluded.indexed_commit,
                     status='indexed', indexed_at=excluded.indexed_at, file_count=excluded.file_count,
                     symbol_count=excluded.symbol_count, errors_json=excluded.errors_json
-            """, (repo_id, data["name"], data["root"], data["branch"], data["commit"], now(),
-                  len(data["files"]), len(data["symbols"]), json.dumps(data["errors"])))
-            repo_id = db.execute("SELECT id FROM repositories WHERE root_path=?", (data["root"],)).fetchone()["id"]
-            db.execute("DELETE FROM files WHERE repository_id=?", (repo_id,))
-            db.execute("DELETE FROM file_search WHERE repository_id=?", (repo_id,))
-            db.execute("DELETE FROM symbols WHERE repository_id=?", (repo_id,))
-            db.execute("DELETE FROM relationships WHERE repository_id=?", (repo_id,))
-            for item in data["files"]:
-                db.execute("INSERT INTO files VALUES (?,?,?,?,?,?)",
-                    (repo_id, item["path"], item["language"], item["content"], item["sha256"], item["size_bytes"]))
-                db.execute("INSERT INTO file_search VALUES (?,?,?,?)",
-                    (repo_id, item["path"], item["language"], item["content"]))
-            for item in data["symbols"]:
-                db.execute("INSERT INTO symbols VALUES (?,?,?,?,?,?,?,?)",
-                    (repo_id, item["name"], item["qualified_name"], item["kind"], item["path"],
-                     item["start_line"], item["end_line"], item["signature"]))
-            for item in data["imports"]:
-                db.execute("INSERT INTO relationships VALUES (?,?,?,?,?)",
-                    (repo_id, item["source"], item["target"], item["kind"], 0.7))
-            db.execute("INSERT INTO audit_events VALUES (?,?,?,?,?,?,?)",
-                (str(uuid.uuid4()), repo_id, "index_repository", data["root"], "success", now(),
-                 json.dumps({"files": len(data["files"]), "symbols": len(data["symbols"])})))
-            row = db.execute("SELECT * FROM repositories WHERE id=?", (repo_id,)).fetchone()
-            return dict(row)
+                """,
+                (
+                    repo_id, data["name"], data["root"], data["branch"], data["commit"], now(),
+                    len(data["files"]), len(data["symbols"]), json.dumps(data["errors"]),
+                ),
+            )
+            repo_id = db.execute(
+                "SELECT id FROM repositories WHERE root_path=?", (data["root"],)
+            ).fetchone()["id"]
+            previous = {
+                row["path"]: row["sha256"]
+                for row in db.execute(
+                    "SELECT path,sha256 FROM files WHERE repository_id=?", (repo_id,)
+                ).fetchall()
+            }
+            incoming_paths = set(incoming_files)
+            previous_paths = set(previous)
+            added_paths = incoming_paths - previous_paths
+            removed_paths = previous_paths - incoming_paths
+            changed_paths = {
+                path for path in incoming_paths & previous_paths
+                if incoming_files[path]["sha256"] != previous[path]
+            }
+            dirty_paths = added_paths | changed_paths | removed_paths
+
+            for path in sorted(dirty_paths):
+                db.execute(
+                    "DELETE FROM files WHERE repository_id=? AND path=?", (repo_id, path)
+                )
+                db.execute(
+                    "DELETE FROM file_search WHERE repository_id=? AND path=?", (repo_id, path)
+                )
+                db.execute(
+                    "DELETE FROM symbols WHERE repository_id=? AND path=?", (repo_id, path)
+                )
+                db.execute(
+                    "DELETE FROM relationships WHERE repository_id=? AND source=?", (repo_id, path)
+                )
+
+            for path in sorted(added_paths | changed_paths):
+                item = incoming_files[path]
+                db.execute(
+                    "INSERT INTO files VALUES (?,?,?,?,?,?)",
+                    (
+                        repo_id, item["path"], item["language"], item["content"],
+                        item["sha256"], item["size_bytes"],
+                    ),
+                )
+                db.execute(
+                    "INSERT INTO file_search VALUES (?,?,?,?)",
+                    (repo_id, item["path"], item["language"], item["content"]),
+                )
+                for symbol in symbols_by_path.get(path, []):
+                    db.execute(
+                        "INSERT INTO symbols VALUES (?,?,?,?,?,?,?,?)",
+                        (
+                            repo_id, symbol["name"], symbol["qualified_name"], symbol["kind"],
+                            symbol["path"], symbol["start_line"], symbol["end_line"],
+                            symbol["signature"],
+                        ),
+                    )
+                for relationship in imports_by_path.get(path, []):
+                    db.execute(
+                        "INSERT INTO relationships VALUES (?,?,?,?,?)",
+                        (
+                            repo_id, relationship["source"], relationship["target"],
+                            relationship["kind"], 0.7,
+                        ),
+                    )
+
+            delta = {
+                "added": len(added_paths),
+                "updated": len(changed_paths),
+                "removed": len(removed_paths),
+                "unchanged": len(incoming_paths & previous_paths) - len(changed_paths),
+                "files_scanned": len(incoming_files),
+            }
+            db.execute(
+                "INSERT INTO audit_events VALUES (?,?,?,?,?,?,?)",
+                (
+                    str(uuid.uuid4()), repo_id, "index_repository", data["root"], "success",
+                    now(), json.dumps({"delta": delta, "symbols": len(data["symbols"])}),
+                ),
+            )
+            row = dict(db.execute(
+                "SELECT * FROM repositories WHERE id=?", (repo_id,)
+            ).fetchone())
+            row["index_delta"] = delta
+            return row
 
     def list_repositories(self) -> list[dict[str, Any]]:
         with self.connect() as db:
