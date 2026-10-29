@@ -34,7 +34,7 @@ def _provider_url(raw: str) -> str | None:
         if not hostname or any(not label or len(label) > 63 for label in hostname.split(".")):
             return None
         return raw.rstrip("/")
-    except ValueError:
+    except (ValueError, UnicodeError):
         return None
 
 
