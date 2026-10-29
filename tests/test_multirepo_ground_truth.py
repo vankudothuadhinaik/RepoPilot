@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from evals.run_multirepo_ground_truth import _citation_matches_source, _query
 
 
