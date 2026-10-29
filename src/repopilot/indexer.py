@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -30,7 +31,8 @@ def git_value(root: Path, *args: str) -> str | None:
 def language_for(path: Path) -> str:
     return {
         ".py": "python", ".pyi": "python", ".js": "javascript", ".jsx": "javascript",
-        ".ts": "typescript", ".tsx": "typescript", ".java": "java", ".kt": "kotlin",
+        ".ts": "typescript", ".tsx": "typescript", ".mjs": "javascript", ".cjs": "javascript",
+        ".java": "java", ".kt": "kotlin",
         ".go": "go", ".rs": "rust", ".c": "c", ".h": "c/c++", ".cc": "cpp",
         ".cpp": "cpp", ".hpp": "cpp", ".cs": "csharp", ".rb": "ruby",
         ".php": "php", ".swift": "swift", ".scala": "scala", ".sql": "sql",
@@ -101,7 +103,16 @@ def parse_python(path: str, content: str) -> list[dict[str, Any]]:
 
 
 def extract_imports(path: str, content: str, language: str) -> list[dict[str, str]]:
+    """Extract conservative static import/include edges without executing source code."""
     imports: list[dict[str, str]] = []
+
+    def add(target: str, kind: str) -> None:
+        normalized = target.strip()
+        if normalized and not any(
+            item["target"] == normalized and item["kind"] == kind for item in imports
+        ):
+            imports.append({"source": path, "target": normalized, "kind": kind})
+
     if language == "python":
         try:
             tree = ast.parse(content)
@@ -109,9 +120,61 @@ def extract_imports(path: str, content: str, language: str) -> list[dict[str, st
             return []
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
-                imports.extend({"source": path, "target": alias.name, "kind": "import"} for alias in node.names)
+                for alias in node.names:
+                    add(alias.name, "import")
             elif isinstance(node, ast.ImportFrom) and node.module:
-                imports.append({"source": path, "target": node.module, "kind": "import"})
+                add("." * node.level + node.module, "import")
+        return imports
+
+    if language in {"javascript", "typescript"}:
+        patterns = (
+            (r"""^\s*import\s+(?:[^;\n]*?\s+from\s+)?["']([^"']+)["']""", "import"),
+            (r"""^\s*export\s+[^;\n]*?\s+from\s+["']([^"']+)["']""", "import"),
+            (r"""\b(?:require|import)\s*\(\s*["']([^"']+)["']\s*\)""", "require"),
+        )
+        for pattern, kind in patterns:
+            for match in re.finditer(pattern, content, flags=re.MULTILINE):
+                add(match.group(1), kind)
+        return imports
+
+    if language in {"java", "kotlin"}:
+        for match in re.finditer(
+            r"^\s*import\s+(?:static\s+)?([\w.*]+)", content, flags=re.MULTILINE
+        ):
+            add(match.group(1), "import")
+        return imports
+
+    if language == "go":
+        for match in re.finditer(
+            r'^\s*import\s+(?:[\w.]+\s+)?["\']([^"\']+)["\']',
+            content, flags=re.MULTILINE,
+        ):
+            add(match.group(1), "import")
+        for block in re.finditer(
+            r"^\s*import\s*\((.*?)^\s*\)", content,
+            flags=re.MULTILINE | re.DOTALL,
+        ):
+            for target in re.findall(r'["\']([^"\']+)["\']', block.group(1)):
+                add(target, "import")
+        return imports
+
+    if language in {"c", "c/c++", "cpp"}:
+        for match in re.finditer(
+            r'^\s*#\s*include\s*[<"]([^>"]+)[>"]', content, flags=re.MULTILINE
+        ):
+            add(match.group(1), "include")
+        return imports
+
+    if language == "rust":
+        for match in re.finditer(r"^\s*use\s+([^;]+);", content, flags=re.MULTILINE):
+            add(match.group(1), "use")
+        for match in re.finditer(r"^\s*mod\s+(\w+)\s*;", content, flags=re.MULTILINE):
+            add(match.group(1), "module")
+        return imports
+
+    if language == "csharp":
+        for match in re.finditer(r"^\s*using\s+([\w.]+)\s*;", content, flags=re.MULTILINE):
+            add(match.group(1), "using")
     return imports
 
 
