@@ -107,20 +107,20 @@ def test_gitignore_directory_patterns_and_case_sensitivity(fixture_repo):
 def test_nested_gitignore_rules_and_negations(fixture_repo):
     nested = fixture_repo / "src"
     nested.mkdir()
-    (nested / ".gitignore").write_text("generated/\n*.tmp\n!keep.tmp\n", encoding="utf-8")
+    (nested / ".gitignore").write_text("generated/\n*.py\n!keep.py\n", encoding="utf-8")
     generated = nested / "generated"
     generated.mkdir()
     (generated / "ignored.py").write_text("def hidden(): pass\n", encoding="utf-8")
-    (nested / "drop.tmp").write_text("ignored", encoding="utf-8")
-    (nested / "keep.tmp").write_text("included", encoding="utf-8")
+    (nested / "drop.py").write_text("def ignored(): pass\n", encoding="utf-8")
+    (nested / "keep.py").write_text("def included(): pass\n", encoding="utf-8")
     (nested / "main.py").write_text("def visible(): pass\n", encoding="utf-8")
 
     indexed = index_repository(fixture_repo)
     paths = {item["path"] for item in indexed["files"]}
     assert "src/generated/ignored.py" not in paths
-    assert "src/drop.tmp" not in paths
-    assert "src/keep.tmp" in paths
-    assert "src/main.py" in paths
+    assert "src/drop.py" not in paths
+    assert "src/keep.py" in paths
+    assert "src/main.py" not in paths
 
 
 def test_gitignore_cannot_reinclude_file_inside_ignored_parent(fixture_repo):
