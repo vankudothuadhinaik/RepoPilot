@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from repopilot.config import database_path
+from repopilot.indexer import PARSER_VERSION
 
 
 def now() -> str:
@@ -41,7 +42,8 @@ class Store:
                     id TEXT PRIMARY KEY, name TEXT NOT NULL, root_path TEXT NOT NULL UNIQUE,
                     branch TEXT, indexed_commit TEXT, status TEXT NOT NULL DEFAULT 'indexed',
                     indexed_at TEXT NOT NULL, file_count INTEGER NOT NULL DEFAULT 0,
-                    symbol_count INTEGER NOT NULL DEFAULT 0, errors_json TEXT NOT NULL DEFAULT '[]'
+                    symbol_count INTEGER NOT NULL DEFAULT 0, errors_json TEXT NOT NULL DEFAULT '[]',
+                    parser_version TEXT NOT NULL DEFAULT '1'
                 );
                 CREATE TABLE IF NOT EXISTS files (
                     repository_id TEXT NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
@@ -77,6 +79,13 @@ class Store:
                     target TEXT, outcome TEXT NOT NULL, created_at TEXT NOT NULL, details_json TEXT NOT NULL
                 );
             """)
+            repository_columns = {
+                row["name"] for row in db.execute("PRAGMA table_info(repositories)").fetchall()
+            }
+            if "parser_version" not in repository_columns:
+                db.execute(
+                    "ALTER TABLE repositories ADD COLUMN parser_version TEXT NOT NULL DEFAULT '1'"
+                )
 
     def audit(self, repository_id: str | None, action: str, target: str | None,
               outcome: str, details: dict[str, Any] | None = None) -> None:
@@ -102,16 +111,18 @@ class Store:
             db.execute(
                 """
                 INSERT INTO repositories(id,name,root_path,branch,indexed_commit,status,indexed_at,
-                    file_count,symbol_count,errors_json)
-                VALUES(?,?,?,?,?,'indexed',?,?,?,?)
+                    file_count,symbol_count,errors_json,parser_version)
+                VALUES(?,?,?,?,?,'indexed',?,?,?,?,?)
                 ON CONFLICT(root_path) DO UPDATE SET
                     name=excluded.name, branch=excluded.branch, indexed_commit=excluded.indexed_commit,
                     status='indexed', indexed_at=excluded.indexed_at, file_count=excluded.file_count,
-                    symbol_count=excluded.symbol_count, errors_json=excluded.errors_json
+                    symbol_count=excluded.symbol_count, errors_json=excluded.errors_json,
+                    parser_version=excluded.parser_version
                 """,
                 (
                     repo_id, data["name"], data["root"], data["branch"], data["commit"], now(),
                     len(data["files"]), len(data["symbols"]), json.dumps(data["errors"]),
+                    data.get("parser_version", PARSER_VERSION),
                 ),
             )
             repo_id = db.execute(
