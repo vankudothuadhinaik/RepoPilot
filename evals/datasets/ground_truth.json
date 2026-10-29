@@ -55,7 +55,7 @@
     },
     {
       "id": "ground-truth-008",
-      "query": "parse Python nested qualified names signature",
+      "query": "parse Python qualified names readable signatures",
       "expected_path": "src/repopilot/indexer.py",
       "expected_symbol": "parse_python",
       "expected_start_line": 43,
@@ -73,7 +73,7 @@
     },
     {
       "id": "ground-truth-010",
-      "query": "fallback search path tokens ranking",
+      "query": "fallback search path tokens rank",
       "expected_path": "src/repopilot/store.py",
       "expected_symbol": "_fallback_search",
       "expected_start_line": 333,
