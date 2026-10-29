@@ -117,14 +117,18 @@ def score_case(question: dict[str, Any], response: dict[str, Any], root: Path) -
     ]
     if expected_path:
         start, end = question.get("expected_start_line"), question.get("expected_end_line")
-        range_covered = any(
-            item.get("path") == expected_path
-            and isinstance(item.get("start_line"), int)
-            and isinstance(item.get("end_line"), int)
-            and item["start_line"] <= end
-            and item["end_line"] >= start
-            and item in valid_evidence
-            for item in evidence
+        range_covered = bool(
+            isinstance(start, int)
+            and isinstance(end, int)
+            and any(
+                item.get("path") == expected_path
+                and isinstance(item.get("start_line"), int)
+                and isinstance(item.get("end_line"), int)
+                and item["start_line"] <= end
+                and item["end_line"] >= start
+                and item in valid_evidence
+                for item in evidence
+            )
         )
         return {
             "id": question["id"],
