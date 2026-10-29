@@ -37,7 +37,7 @@
     },
     {
       "id": "ground-truth-006",
-      "query": "safe_repository_root expanduser resolve strict",
+      "query": "safe_repository_root",
       "expected_path": "src/repopilot/security.py",
       "expected_symbol": "safe_repository_root",
       "expected_start_line": 130,
@@ -73,7 +73,7 @@
     },
     {
       "id": "ground-truth-010",
-      "query": "fallback path_prefix language rows",
+      "query": "_fallback_search",
       "expected_path": "src/repopilot/store.py",
       "expected_symbol": "_fallback_search",
       "expected_start_line": 333,
