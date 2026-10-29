@@ -6,15 +6,14 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-PARSER_VERSION = "2"
-
-
 from repopilot.security import (
     _gitignore_patterns,
     read_safe_text,
     safe_repository_root,
     should_ignore,
 )
+
+PARSER_VERSION = "2"
 
 
 def git_value(root: Path, *args: str) -> str | None:
