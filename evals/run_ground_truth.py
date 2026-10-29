@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -34,13 +35,29 @@ def evaluate(root: Path) -> dict[str, Any]:
     os.environ.setdefault("REP_PILOT_API_TOKEN", "ground-truth-validation-token")
     with tempfile.TemporaryDirectory() as directory:
         os.environ["REP_PILOT_DATA_DIR"] = directory
+        # Keep the labels and literal query strings out of the indexed corpus.
+        # Otherwise the evaluator can retrieve its own ground-truth JSON as evidence,
+        # inflating scores through benchmark leakage rather than source retrieval.
+        corpus_root = Path(directory) / "corpus" / root.name
+        shutil.copytree(
+            root,
+            corpus_root,
+            ignore=shutil.ignore_patterns(
+                ".git", "__pycache__", ".venv", "node_modules",
+                ".pytest_cache", ".mypy_cache", "dist", "build",
+            ),
+        )
+        ground_truth_file = corpus_root / "evals" / "datasets" / "ground_truth.json"
+        if ground_truth_file.is_file():
+            ground_truth_file.unlink()
+
         from fastapi.testclient import TestClient
 
         from repopilot.api import app
 
         client = TestClient(app)
         headers = {"Authorization": "Bearer ground-truth-validation-token"}
-        registration = client.post("/api/repos", json={"path": str(root)}, headers=headers)
+        registration = client.post("/api/repos", json={"path": str(corpus_root)}, headers=headers)
         registration.raise_for_status()
         repo_id = registration.json()["id"]
         questions = json.loads(
@@ -109,7 +126,7 @@ def evaluate(root: Path) -> dict[str, Any]:
                         "path": item["path"],
                         "start_line": item["start_line"],
                         "end_line": item["end_line"],
-                        "source_lines_valid": _citation_matches_source(item, root),
+                        "source_lines_valid": _citation_matches_source(item, corpus_root),
                     }
                     for item in ask.json()["evidence"]
                 ]
@@ -158,8 +175,12 @@ def evaluate(root: Path) -> dict[str, Any]:
             metrics[key] == 1.0
             for key in ("recall_at_5", "symbol_accuracy", "citation_accuracy", "unsupported_abstention_rate")
         )
-        return {"title": "RepoPilot source-grounded validation", "root": str(root),
-                "metrics": metrics, "category_metrics": category_metrics,
+        return {
+            "title": "RepoPilot source-grounded validation",
+            "root": str(root),
+            "excluded_self_referential_dataset": "evals/datasets/ground_truth.json",
+            "metrics": metrics,
+            "category_metrics": category_metrics,
                 "passed": passed, "results": details}
 
 
