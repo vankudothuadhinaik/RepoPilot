@@ -1,8 +1,9 @@
 # RepoPilot release readiness
 
-Review baseline: `main` at `8645ac8fd28ba14365a0e61269bee015eb3db778`, with
-the uncommitted audit and evaluator changes in this workspace. No commit or
-push was performed during this review.
+Review baseline: `main` at `8645ac8fd28ba14365a0e61269bee015eb3db778`.
+The audit and evaluator changes were finalized in `ffb4ed2a09a84f09915b4db3214db5614d4fa8b3`;
+the CI history fix was finalized in `cbe5fbd3427f56ed1786d212a9b4816d55559f90`.
+Both commits are pushed to `origin/main`.
 
 ## Verified local checks
 
