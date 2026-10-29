@@ -104,7 +104,7 @@
       "expected_path": "src/repopilot/api.py",
       "expected_symbol": "ask_repository",
       "expected_start_line": 141,
-      "expected_end_line": 232,
+      "expected_end_line": 231,
       "category": "evidence_selection"
     },
     {
