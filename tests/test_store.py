@@ -1,6 +1,7 @@
 import json
 
 from repopilot.indexer import PARSER_VERSION, index_repository
+from repopilot.store import Store
 
 
 def test_index_search_symbols_and_memory(fixture_repo, store):
