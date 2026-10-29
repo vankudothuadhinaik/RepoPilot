@@ -15,7 +15,7 @@
 
 RepoPilot is a local-first repository investigation tool for developers exploring unfamiliar codebases. It combines incremental indexing, SQLite full-text search, Python symbol extraction, conservative import/include relationships, cited evidence, optional grounded answers, and an optional web dashboard.
 
-> **Project status:** MVP for local development and evaluation. The repository's synthetic benchmark is a repeatable smoke/evaluation aid, not evidence of production retrieval accuracy. See [Evaluation and evidence](#evidence-and-verification).
+> **Project status:** MVP for local development and evaluation. Automated CI and CodeQL have passed on the previously verified main snapshot; curated offline ground-truth evaluations passed 15/15 and 41/41. These are regression checks, not proof of production retrieval accuracy. The optional live-provider evaluator supports OpenAI-compatible APIs, including an eligible free-tier Gemini setup; see [Live provider evaluation](docs/live-provider-evaluation.md).
 
 ## What it does
 
