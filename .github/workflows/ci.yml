@@ -39,6 +39,31 @@ jobs:
       - run: python -m compileall -q src
       - run: PYTHONPATH=src python evals/run_eval.py
       - run: PYTHONPATH=src python evals/run_ground_truth.py --root .
+      - name: Multi-repository reviewed-range evaluation
+        run: PYTHONPATH=src python evals/run_multirepo_ground_truth.py --root . --output multirepo_ground_truth_results.json
+      - name: Publish multi-repository evaluation report
+        uses: actions/upload-artifact@v7
+        with:
+          name: repopilot-multirepo-ground-truth-py${{ matrix.python-version }}-${{ github.sha }}
+          path: multirepo_ground_truth_results.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Benchmark pinned external repository snapshots
+        run: >-
+          PYTHONPATH=src python evals/benchmark_matrix.py
+          evals/corpora/datapulse evals/corpora/healthstream evals/corpora/matching-engine
+          --redact-paths
+          --source-revision datapulse=d2e80f7e737823bd349de76b421cdbf7d3a352d1
+          --source-revision healthstream=c276139ca273be09c6f177b4a25b420766cade16
+          --source-revision matching-engine=fdda1c07e75f7ab87b33a74a60a5eb04e99ac7b1
+          --output multi_repository_benchmark_matrix.json
+      - name: Publish multi-repository performance report
+        uses: actions/upload-artifact@v7
+        with:
+          name: repopilot-multirepo-performance-py${{ matrix.python-version }}-${{ github.sha }}
+          path: multi_repository_benchmark_matrix.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Live provider evaluation (optional)
         if: ${{ env.OPENAI_EVAL_ENABLED == 'true' && matrix.python-version == '3.11' }}
         continue-on-error: true

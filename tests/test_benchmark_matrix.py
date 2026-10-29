@@ -1,3 +1,6 @@
+import argparse
+import json
+
 import pytest
 
 from evals import benchmark_matrix
@@ -17,13 +20,16 @@ def test_run_matrix_records_commit_and_redacts_root(monkeypatch, tmp_path):
         },
     )
 
-    report = benchmark_matrix.run_matrix([root], redact_paths=True)
+    report = benchmark_matrix.run_matrix(
+        [root], redact_paths=True, source_revisions={"private-project": "abc123"}
+    )
 
     assert report["schema_version"] == 2
     assert report["repository_count"] == 1
     assert report["path_redaction"] == "enabled"
     assert report["reports"][0]["root"] == "<redacted>"
     assert report["reports"][0]["commit"] == "abc123"
+    assert report["reports"][0]["source_commit"] == "abc123"
     assert str(root) not in str(report)
 
 
@@ -39,3 +45,52 @@ def test_run_matrix_rejects_duplicate_roots(tmp_path, monkeypatch):
 def test_run_matrix_requires_existing_repository_roots(tmp_path):
     with pytest.raises(FileNotFoundError):
         benchmark_matrix.run_matrix([tmp_path / "missing"])
+
+
+def test_parse_source_revision_requires_name_and_sha():
+    assert benchmark_matrix.parse_source_revision("repo=abc123") == ("repo", "abc123")
+    with pytest.raises(argparse.ArgumentTypeError):
+        benchmark_matrix.parse_source_revision("missing-sha")
+
+
+def test_run_matrix_materializes_pinned_snapshot_bundle(monkeypatch, tmp_path):
+    root = tmp_path / "datapulse"
+    root.mkdir()
+    (root / "snapshot.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "commit": "upstream-sha",
+                "files": {"README.md": "# Snapshot\n", "src/app.py": "def main():\n    return 1\n"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed = {}
+
+    def fake_run(materialized):
+        observed["readme"] = (materialized / "README.md").read_text(encoding="utf-8")
+        observed["source"] = (materialized / "src" / "app.py").read_text(encoding="utf-8")
+        return {"repository": materialized.name, "root": str(materialized), "commit": None}
+
+    monkeypatch.setattr(benchmark_matrix, "run", fake_run)
+    report = benchmark_matrix.run_matrix(
+        [root], redact_paths=True, source_revisions={"datapulse": "upstream-sha"}
+    )
+
+    assert observed["readme"] == "# Snapshot\n"
+    assert "def main" in observed["source"]
+    assert report["reports"][0]["repository"] == "datapulse"
+    assert report["reports"][0]["root"] == "<redacted>"
+    assert report["reports"][0]["source_commit"] == "upstream-sha"
+
+
+def test_snapshot_materialization_rejects_revision_mismatch(tmp_path):
+    root = tmp_path / "snapshot"
+    root.mkdir()
+    (root / "snapshot.json").write_text(
+        json.dumps({"commit": "actual", "files": {"README.md": "# Snapshot\n"}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="pinned source revision mismatch"):
+        benchmark_matrix._materialize_snapshot(root, tmp_path / "materialized", "expected")

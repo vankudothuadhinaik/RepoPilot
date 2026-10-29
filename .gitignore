@@ -22,3 +22,7 @@ retrieval_benchmark_results.json
 repository_benchmark_results.json
 validation_benchmark_matrix.json
 .DS_Store
+
+# Evaluation fixtures and labels must never be indexed as application source.
+evals/corpora/
+evals/datasets/

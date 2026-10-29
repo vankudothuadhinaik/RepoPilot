@@ -166,3 +166,39 @@ def test_llm_rejects_malformed_provider_ports_and_authority(monkeypatch):
         assert generate_grounded_answer(
             "Where is auth?", [{"path": "src/auth.py", "snippet": "auth"}]
         ) is None
+
+
+def test_llm_http_provider_error_is_redacted(monkeypatch, caplog):
+    from io import BytesIO
+    from urllib.error import HTTPError
+
+    monkeypatch.setenv("OPENAI_API_KEY", "secret-test-key")
+    body = b'{"error":{"code":"credit_balance_exhausted","type":"insufficient_quota","message":"private provider body"}}'
+
+    def provider_error(*args, **kwargs):
+        raise HTTPError(
+            "https://provider.invalid/v1/chat/completions",
+            429,
+            "Too Many Requests",
+            {},
+            BytesIO(body),
+        )
+
+    monkeypatch.setattr("repopilot.llm.urlopen", provider_error)
+    assert generate_grounded_answer(
+        "Where is auth?", [{"path": "src/auth.py", "snippet": "Auth is here."}]
+    ) is None
+    assert "credit_balance_exhausted" in caplog.text
+    assert "private provider body" not in caplog.text
+    assert "secret-test-key" not in caplog.text
+
+
+def test_llm_rejects_malformed_provider_response_shape(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "repopilot.llm.urlopen",
+        lambda *args, **kwargs: FakeResponse({"choices": []}),
+    )
+    assert generate_grounded_answer(
+        "Where is auth?", [{"path": "src/auth.py", "snippet": "Auth is here."}]
+    ) is None

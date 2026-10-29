@@ -8,7 +8,12 @@
       "expected_path": "src/repopilot/api.py",
       "expected_symbol": "require_api_token",
       "expected_start_line": 26,
-      "expected_end_line": 38
+      "expected_end_line": 38,
+      "repository": "RepoPilot",
+      "expected_fact": "Bearer-token middleware protects API routes.",
+      "expected_fact_anchor": "def require_api_token",
+      "category": "authentication",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
     },
     {
       "id": "ground-truth-002",
@@ -16,7 +21,12 @@
       "expected_path": "src/repopilot/indexer.py",
       "expected_symbol": "index_repository",
       "expected_start_line": 187,
-      "expected_end_line": 257
+      "expected_end_line": 257,
+      "repository": "RepoPilot",
+      "expected_fact": "Repository indexing uses known hashes and parser metadata to support incremental indexing.",
+      "expected_fact_anchor": "def index_repository",
+      "category": "indexing",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
     },
     {
       "id": "ground-truth-003",
@@ -24,7 +34,12 @@
       "expected_path": "src/repopilot/store.py",
       "expected_symbol": "search",
       "expected_start_line": 282,
-      "expected_end_line": 331
+      "expected_end_line": 331,
+      "repository": "RepoPilot",
+      "expected_fact": "Search applies query clauses and optional path-prefix constraints.",
+      "expected_fact_anchor": "def search",
+      "category": "retrieval",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
     },
     {
       "id": "ground-truth-005",
@@ -33,7 +48,11 @@
       "expected_symbol": "_provider_url",
       "expected_start_line": 19,
       "expected_end_line": 38,
-      "category": "provider_configuration"
+      "category": "provider_configuration",
+      "repository": "RepoPilot",
+      "expected_fact": "Provider URL validation rejects malformed or unsafe base URLs.",
+      "expected_fact_anchor": "def _provider_url",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
     },
     {
       "id": "ground-truth-006",
@@ -42,7 +61,11 @@
       "expected_symbol": "safe_repository_root",
       "expected_start_line": 130,
       "expected_end_line": 138,
-      "category": "filesystem_safety"
+      "category": "filesystem_safety",
+      "repository": "RepoPilot",
+      "expected_fact": "Repository root validation prevents traversal outside the permitted root.",
+      "expected_fact_anchor": "def safe_repository_root",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
     },
     {
       "id": "ground-truth-007",
@@ -51,7 +74,11 @@
       "expected_symbol": "read_safe_text",
       "expected_start_line": 243,
       "expected_end_line": 335,
-      "category": "filesystem_safety"
+      "category": "filesystem_safety",
+      "repository": "RepoPilot",
+      "expected_fact": "Safe file reads use handle-based checks and no-follow semantics.",
+      "expected_fact_anchor": "def read_safe_text",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
     },
     {
       "id": "ground-truth-008",
@@ -60,7 +87,11 @@
       "expected_symbol": "parse_python",
       "expected_start_line": 43,
       "expected_end_line": 102,
-      "category": "symbol_indexing"
+      "category": "symbol_indexing",
+      "repository": "RepoPilot",
+      "expected_fact": "Python parsing extracts qualified names and readable signatures.",
+      "expected_fact_anchor": "def parse_python",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
     },
     {
       "id": "ground-truth-009",
@@ -69,7 +100,11 @@
       "expected_symbol": "extract_imports",
       "expected_start_line": 105,
       "expected_end_line": 184,
-      "category": "import_indexing"
+      "category": "import_indexing",
+      "repository": "RepoPilot",
+      "expected_fact": "Import extraction uses language-specific static parsing rules.",
+      "expected_fact_anchor": "def extract_imports",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
     },
     {
       "id": "ground-truth-010",
@@ -78,7 +113,11 @@
       "expected_symbol": "_fallback_search",
       "expected_start_line": 333,
       "expected_end_line": 360,
-      "category": "fallback_retrieval"
+      "category": "fallback_retrieval",
+      "repository": "RepoPilot",
+      "expected_fact": "Fallback retrieval keeps snippets bounded and query-relevant.",
+      "expected_fact_anchor": "def _fallback_search",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
     },
     {
       "id": "ground-truth-011",
@@ -87,7 +126,11 @@
       "expected_symbol": "create_memory",
       "expected_start_line": 404,
       "expected_end_line": 421,
-      "category": "memory_persistence"
+      "category": "memory_persistence",
+      "repository": "RepoPilot",
+      "expected_fact": "Memory creation persists the requested kind, summary, and evidence.",
+      "expected_fact_anchor": "def create_memory",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
     },
     {
       "id": "ground-truth-012",
@@ -96,7 +139,11 @@
       "expected_symbol": "generate_grounded_answer",
       "expected_start_line": 41,
       "expected_end_line": 168,
-      "category": "grounded_answer_validation"
+      "category": "grounded_answer_validation",
+      "repository": "RepoPilot",
+      "expected_fact": "Grounded answer generation validates provider output and supported citations.",
+      "expected_fact_anchor": "def generate_grounded_answer",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
     },
     {
       "id": "ground-truth-013",
@@ -105,7 +152,11 @@
       "expected_symbol": "ask_repository",
       "expected_start_line": 141,
       "expected_end_line": 231,
-      "category": "evidence_selection"
+      "category": "evidence_selection",
+      "repository": "RepoPilot",
+      "expected_fact": "The ask endpoint selects query-matched evidence and abstains when support is unavailable.",
+      "expected_fact_anchor": "def ask_repository",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
     },
     {
       "id": "ground-truth-014",
@@ -114,7 +165,11 @@
       "expected_symbol": "delete_repository",
       "expected_start_line": 459,
       "expected_end_line": 466,
-      "category": "repository_lifecycle"
+      "category": "repository_lifecycle",
+      "repository": "RepoPilot",
+      "expected_fact": "Repository deletion removes its persisted repository state.",
+      "expected_fact_anchor": "def delete_repository",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
     },
     {
       "id": "ground-truth-015",
@@ -135,7 +190,10 @@
       "expected_symbol": null,
       "expected_start_line": null,
       "expected_end_line": null,
-      "category": "unsupported_query"
+      "category": "unsupported_query",
+      "repository": "RepoPilot",
+      "expected_fact": "No repository evidence should support this unsupported query.",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
     },
     {
       "id": "ground-truth-016",
@@ -161,7 +219,25 @@
       "expected_symbol": null,
       "expected_start_line": null,
       "expected_end_line": null,
-      "category": "unsupported_query"
+      "category": "unsupported_query",
+      "repository": "RepoPilot",
+      "expected_fact": "No repository evidence should support this unsupported query.",
+      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
+    }
+  ],
+  "version": 2,
+  "authoring": {
+    "status": "maintainer_authored",
+    "independent_review_status": "pending",
+    "review_requirement": "A second reviewer should independently verify every query, expected path, symbol range, fact anchor, and unsupported case before external benchmark claims.",
+    "created_at": "2026-10-29"
+  },
+  "repositories": [
+    {
+      "id": "RepoPilot",
+      "upstream": "https://github.com/vankudothuadhinaik/RepoPilot",
+      "commit": "52e2e6b212405087fc79fd46ec3bb0edee5dc952",
+      "role": "single-repository baseline source snapshot"
     }
   ]
 }
