@@ -93,6 +93,20 @@ def _expected_symbol_valid(
     )
 
 
+def _citation_covers_expected_range(
+    checks: list[dict[str, Any]], expected_path: str, start: int, end: int
+) -> bool:
+    return any(
+        item["path"] == expected_path
+        and isinstance(item["start_line"], int)
+        and isinstance(item["end_line"], int)
+        and item["start_line"] <= end
+        and item["end_line"] >= start
+        and item["source_lines_valid"]
+        for item in checks
+    )
+
+
 def _score_supported_question(
     question: dict[str, Any],
     context: QuestionContext,
@@ -102,14 +116,8 @@ def _score_supported_question(
     expected_path = question["expected_path"]
     expected_start, expected_end = question["expected_start_line"], question["expected_end_line"]
     checks = _evidence_checks(answer, context.corpus_root)
-    citation_ok = any(
-        item["path"] == expected_path
-        and isinstance(item["start_line"], int)
-        and isinstance(item["end_line"], int)
-        and item["start_line"] <= expected_end
-        and item["end_line"] >= expected_start
-        and item["source_lines_valid"]
-        for item in checks
+    citation_ok = _citation_covers_expected_range(
+        checks, expected_path, expected_start, expected_end
     )
     rank = _expected_path_rank(results, expected_path)
     symbol_ok = _expected_symbol_valid(context, question)
@@ -185,36 +193,39 @@ def _category_metrics(details: list[dict[str, Any]]) -> dict[str, dict[str, Any]
     }
 
 
+@dataclass(frozen=True)
+class ResultGroups:
+    positive_results: list[dict[str, Any]]
+    negative_results: list[dict[str, Any]]
+    symbol_results: list[dict[str, Any]]
+
+
 def _group_results(
     questions: list[dict[str, Any]], details: list[dict[str, Any]]
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> ResultGroups:
     by_id = {item["id"]: item for item in details}
     positives = [item for item in questions if item.get("expected_path")]
     negatives = [item for item in questions if not item.get("expected_path")]
     symbol_cases = [item for item in positives if item.get("expected_symbol")]
-    return (
-        [by_id[item["id"]] for item in positives],
-        [by_id[item["id"]] for item in negatives],
-        [by_id[item["id"]] for item in symbol_cases],
+    return ResultGroups(
+        positive_results=[by_id[item["id"]] for item in positives],
+        negative_results=[by_id[item["id"]] for item in negatives],
+        symbol_results=[by_id[item["id"]] for item in symbol_cases],
     )
 
 
 def _build_metrics(
-    questions: list[dict[str, Any]],
-    details: list[dict[str, Any]],
-    positive_results: list[dict[str, Any]],
-    negative_results: list[dict[str, Any]],
-    symbol_results: list[dict[str, Any]],
+    questions: list[dict[str, Any]], details: list[dict[str, Any]], groups: ResultGroups
 ) -> dict[str, Any]:
     positives = sum(bool(item.get("expected_path")) for item in questions)
     negatives = len(questions) - positives
     return {
         "positive_queries": positives,
         "negative_queries": negatives,
-        "symbol_range_cases": len(symbol_results),
-        **_retrieval_metrics(positive_results),
-        **_evidence_metrics(positive_results, symbol_results),
-        **_abstention_metrics(negative_results),
+        "symbol_range_cases": len(groups.symbol_results),
+        **_retrieval_metrics(groups.positive_results),
+        **_evidence_metrics(groups.positive_results, groups.symbol_results),
+        **_abstention_metrics(groups.negative_results),
         "passed_cases": sum(bool(item["passed"]) for item in details),
         "total_cases": len(details),
     }
@@ -235,10 +246,8 @@ def _build_report(
     questions: list[dict[str, Any]],
     details: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    positive_results, negative_results, symbol_results = _group_results(questions, details)
-    metrics = _build_metrics(
-        questions, details, positive_results, negative_results, symbol_results
-    )
+    groups = _group_results(questions, details)
+    metrics = _build_metrics(questions, details, groups)
     return {
         "schema_version": 1,
         "title": dataset.get("title"),

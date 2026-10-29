@@ -1,41 +1,40 @@
-# Final validation report
+# Validation report
 
 ## Scope and reproducibility
 
-This report records the validation run performed from `C:\Users\vanku\Downloads\RepoPilot` on Windows PowerShell against merged source commit `ebf98660754255e99896b2f6c3b4f10185776dcc`. The final documentation/evaluation commit adds only reproducibility metadata and reviewed expected ranges after that source merge. No external penetration test, hosted deployment, or live LLM-provider evaluation was performed.
+P3 evaluation changes are merged in commit `81db677152e0b5ce70936cb6116c2dee6ac4ef98`. This report reflects the remote GitHub Actions run against that exact commit rather than a developer-specific local workspace.
 
-Environment observed during the run:
+- [CI run](https://github.com/vankudothuadhinaik/RepoPilot/actions/runs/40921608962) — passed.
+- [CodeQL run](https://github.com/vankudothuadhinaik/RepoPilot/actions/runs/40921608715) — passed.
+- Python 3.11 and 3.12 tests passed; Ruff, Mypy, Windows security, Docker build, frontend build, and optional MCP checks passed.
+- Python test summary on the Python 3.11 job: 77 passed, 1 warning; coverage report was 74% for `src/repopilot`.
 
-- Windows PowerShell workspace; Python 3.14.8; Node.js 24.22.0/npm 11.19.1; Docker Engine 29.9.2; Doppler CLI 3.77.1.
-- Docker Desktop, Doppler CLI, Node.js/npm, and the existing local Compose service available.
-- Four local repositories were inspected without modifying their working trees: RepoPilot, DataPulse-Analytics, healthstream-etl, and low_latency_matching_engine.
+## Offline source-grounded evaluation
 
-## Commands and results
+The versioned multi-repository set has 41 cases across four pinned snapshots: 31 positive expected-range cases and 10 unsupported queries. The source revision IDs and upstream repository URLs are stored with the dataset.
 
-```powershell
-python evals/run_eval.py
-python evals/run_ground_truth.py --root .
-python evals/run_multi_repo.py --repo "RepoPilot=C:\Users\vanku\Downloads\RepoPilot" --repo "DataPulse=C:\Users\vanku\Downloads\Projects\DataPulse-Analytics" --repo "Healthstream=C:\Users\vanku\Downloads\healthstream-etl" --repo "Matching=C:\Users\vanku\Downloads\Projects\low_latency_matching_engine\low_latency_matching_engine" --case "RepoPilot|authorization middleware|src/repopilot/api.py" --case "DataPulse|health|backend/app/main.py" --case "Healthstream|pipeline|src/pipeline.py" --case "Matching|residual quantity|src/MatchingEngine.cpp"
-python -m pytest
-python -m ruff check .
-python -m mypy src/repopilot
-python -m compileall -q src
-cd apps/web; npm ci; npm audit --audit-level=moderate; npm run build
-cd ../..
-$env:REP_PILOT_API_TOKEN='validation-placeholder'; docker compose config --quiet; Remove-Item Env:REP_PILOT_API_TOKEN
-doppler run -- docker compose up --build -d
-```
+| Metric | CI result |
+|---|---:|
+| Recall@1 | 93.55% (29/31) |
+| Recall@5 | 100% (31/31) |
+| MRR@5 | 0.9543 |
+| Citation-range validity | 100% |
+| Symbol-range accuracy | 100% (13/13 symbol cases) |
+| Unsupported-query abstention | 100% (10/10) |
+| Total cases passing | 41/41 |
 
-Results:
+CI publishes the JSON evaluation report and a path-redacted performance matrix for the three external source snapshots as 30-day artifacts. The matrix includes pinned source revisions, file counts/bytes, scan and incremental-index measurements, fixed-query median/p95 latency, database size, and tracked peak allocations.
 
-- Existing synthetic evaluation: passed, 50/50 cases; Recall@5 1.0, Recall@10 1.0, MRR@10 1.0, abstention accuracy 1.0.
-- Reviewed ground-truth evaluation: passed; 3 positive and 1 negative question, Recall@5 1.0, MRR@5 0.5, symbol accuracy 1.0, citation accuracy 1.0, unsupported-abstention rate 1.0.
-- Four-repository indexing spot check: all four indexed with zero scanner errors; each selected expected file appeared in the first five results. The run indexed 55/155 files/symbols for RepoPilot, 18/10 for DataPulse-Analytics, 12/15 for healthstream-etl, and 15/0 for low_latency_matching_engine.
-- The four-repository performance matrix completed with zero scan errors and unchanged-tree deltas of zero for all four repositories; it recorded fixed-query median/p95 latency and allocation data in the console output. The generated machine-specific JSON was not committed.
-- 46 Python tests, Ruff, Mypy, compilation, frontend clean install/audit/build, and Compose validation passed.
-- Docker readiness returned `200`, unauthenticated `/api/repos` returned `401`, and a Doppler-authenticated request returned `200` without exposing the token.
-- Missing and empty `REP_PILOT_API_TOKEN` both caused Compose configuration to exit nonzero.
-- A repository registered at container-visible `/app` remained present after a Compose restart. A Windows host path correctly returned `400` because the default Compose file does not mount host source directories.
-- Container inspection confirmed loopback-only host binding, non-root `appuser`, read-only root filesystem, dropped capabilities, `no-new-privileges`, tmpfs, and persistent `/data` volume.
+These are curated, maintainer-authored cases. The dataset explicitly records that independent second-person review is pending. Citation-line validity, retrieval rank, and symbol-span checks do not prove semantic entailment or general production accuracy.
 
-The synthetic and ground-truth scores are bounded validation signals, not production accuracy or security assurance. CI and CodeQL remain the authoritative remote workflow checks after the handoff commit.
+## Live provider evaluation
+
+CI attempted the configured live-provider evaluation, but the latest report recorded 13 provider HTTP errors across 13 positive cases, a provider answer rate of 0%, and a supported-citation rate of 0%. The earlier provider response identified a `429 credit_balance_exhausted` condition. Therefore, the live-provider evaluation is **not passed**; its latency measurements reflect failed requests and local overhead, not successful model generation.
+
+The report now includes the dataset hash/version, configured model and provider hostname, expected facts and source anchors, expected-range coverage, symbol-range checks, exact quoted-evidence support, latency median/p95, and redacted provider error/timeout categories. API credentials and raw provider error bodies are excluded. The provider's server-side model version is not exposed by the API and is not claimed.
+
+## Remaining external validation
+
+- Independent second-person review of all expected paths, ranges, fact anchors, and unsupported cases is still required before calling the corpus independently reviewed.
+- A successful live-provider run requires valid provider credits and a rerun of the evaluation.
+- No external penetration test or independent production-scale retrieval study is claimed.
