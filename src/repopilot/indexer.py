@@ -207,7 +207,7 @@ def index_repository(
                 # Other safe-looking text files that fail to read must mark the scan
                 # partial so persistence does not interpret them as deletions.
                 try:
-                    stat = path.stat()
+                    path.stat()
                     if not path.is_symlink():
                         rel = path.relative_to(root).as_posix()
                         reason = (
