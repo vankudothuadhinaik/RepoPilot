@@ -131,3 +131,60 @@ def test_gitignore_cannot_reinclude_file_inside_ignored_parent(fixture_repo):
 
     indexed = index_repository(fixture_repo)
     assert "private/visible.py" not in {item["path"] for item in indexed["files"]}
+
+
+def test_safe_read_rejects_oversized_file(fixture_repo):
+    from repopilot.security import MAX_FILE_BYTES, read_safe_text
+
+    target = fixture_repo / "large.py"
+    target.write_bytes(b"x" * (MAX_FILE_BYTES + 1))
+    assert read_safe_text(target, root=fixture_repo) is None
+
+
+def test_safe_read_rejects_nul_bytes(fixture_repo):
+    from repopilot.security import read_safe_text
+
+    target = fixture_repo / "binary.py"
+    target.write_bytes(b"def safe(): pass\x00\n")
+    assert read_safe_text(target, root=fixture_repo) is None
+
+
+def test_safe_read_rejects_invalid_utf8(fixture_repo):
+    from repopilot.security import read_safe_text
+
+    target = fixture_repo / "invalid.py"
+    target.write_bytes(b"\xff\xfe\xfa")
+    assert read_safe_text(target, root=fixture_repo) is None
+
+
+def test_safe_read_rejects_secret_paths_even_when_text(fixture_repo):
+    from repopilot.security import read_safe_text
+
+    target = fixture_repo / ".env"
+    target.write_text("TOKEN=must-not-be-read\n", encoding="utf-8")
+    assert read_safe_text(target, root=fixture_repo) is None
+
+
+def test_symlinked_root_gitignore_is_not_followed(fixture_repo, tmp_path):
+    outside = tmp_path / "outside.gitignore"
+    outside.write_text("*.py\n", encoding="utf-8")
+    ignore_file = fixture_repo / ".gitignore"
+    try:
+        ignore_file.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        return
+
+    (fixture_repo / "visible.py").write_text("def visible(): pass\n", encoding="utf-8")
+    indexed = index_repository(fixture_repo)
+    assert "visible.py" in {item["path"] for item in indexed["files"]}
+
+
+def test_gitignore_escaped_comment_is_a_pattern(fixture_repo):
+    (fixture_repo / ".gitignore").write_text(r"\\#private.py\n", encoding="utf-8")
+    (fixture_repo / "#private.py").write_text("def hidden(): pass\n", encoding="utf-8")
+    (fixture_repo / "public.py").write_text("def public(): pass\n", encoding="utf-8")
+
+    indexed = index_repository(fixture_repo)
+    paths = {item["path"] for item in indexed["files"]}
+    assert "#private.py" not in paths
+    assert "public.py" in paths
