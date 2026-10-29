@@ -44,8 +44,6 @@ def test_citation_range_checks_exact_source_lines_and_rejects_traversal(tmp_path
 
 
 def test_clean_root_excludes_all_ground_truth_and_fixture_data(tmp_path):
-    from pathlib import Path
-
     from evals.run_multirepo_ground_truth import _clean_root
 
     root = tmp_path / "checkout"
