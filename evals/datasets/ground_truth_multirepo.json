@@ -77,8 +77,8 @@
       "query": "safe_repository_root",
       "expected_path": "src/repopilot/security.py",
       "expected_symbol": "safe_repository_root",
-      "expected_start_line": 130,
-      "expected_end_line": 138,
+      "expected_start_line": 123,
+      "expected_end_line": 131,
       "category": "filesystem_safety",
       "repository": "RepoPilot"
     },
@@ -87,8 +87,8 @@
       "query": "read_safe_text open file descriptor nofollow",
       "expected_path": "src/repopilot/security.py",
       "expected_symbol": "read_safe_text",
-      "expected_start_line": 243,
-      "expected_end_line": 335,
+      "expected_start_line": 236,
+      "expected_end_line": 328,
       "category": "filesystem_safety",
       "repository": "RepoPilot"
     },
