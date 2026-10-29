@@ -313,6 +313,7 @@ def test_search_normalizes_identifier_tokens_and_boosts_matching_paths(fixture_r
     assert results
     assert results[0]["path"] == "src/auth_token.py"
     assert any(item["path"] == "docs/guide.md" for item in results)
+    assert store.search(repo["id"], "auth_token", limit=1)[0]["path"] == "src/auth_token.py"
 
 def test_fallback_search_uses_same_path_boost_and_ignores_punctuation_only_queries(fixture_repo, store):
     (fixture_repo / "src").mkdir()
