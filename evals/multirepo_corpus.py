@@ -7,35 +7,49 @@ from pathlib import Path
 from typing import Any
 
 
+def _valid_relative_citation_path(path: str) -> bool:
+    candidate = Path(path)
+    return bool(path) and not candidate.is_absolute() and ".." not in candidate.parts and "\\" not in path
+
+
+def _valid_citation_bounds(start: Any, end: Any) -> bool:
+    return (
+        isinstance(start, int)
+        and isinstance(end, int)
+        and start >= 1
+        and end >= start
+    )
+
+
+def _parse_cited_lines(snippet: str) -> dict[int, str]:
+    cited: dict[int, str] = {}
+    for line in snippet.splitlines():
+        number, separator, text = line.partition(": ")
+        if separator and number.isdigit():
+            cited[int(number)] = text
+    return cited
+
+
+def _cited_lines_match_source(cited: dict[int, str], source_lines: list[str]) -> bool:
+    return bool(cited) and all(
+        1 <= number <= len(source_lines) and source_lines[number - 1] == text
+        for number, text in cited.items()
+    )
+
+
 def _citation_matches_source(item: dict[str, Any], root: Path) -> bool:
     path = str(item.get("path", ""))
     start, end = item.get("start_line"), item.get("end_line")
-    if (
-        not path
-        or not isinstance(start, int)
-        or not isinstance(end, int)
-        or start < 1
-        or end < start
-        or Path(path).is_absolute()
-        or ".." in Path(path).parts
-        or "\\" in path
-    ):
+    if not _valid_relative_citation_path(path) or not _valid_citation_bounds(start, end):
         return False
     source = root / Path(path)
     if not source.is_file():
         return False
-    lines = source.read_text(encoding="utf-8").splitlines()
-    if end > len(lines):
+    source_lines = source.read_text(encoding="utf-8").splitlines()
+    if end > len(source_lines):
         return False
-    cited: dict[int, str] = {}
-    for line in str(item.get("snippet", "")).splitlines():
-        number, separator, text = line.partition(": ")
-        if separator and number.isdigit():
-            cited[int(number)] = text
-    return bool(cited) and all(
-        1 <= number <= len(lines) and lines[number - 1] == text
-        for number, text in cited.items()
-    )
+    cited = _parse_cited_lines(str(item.get("snippet", "")))
+    return _cited_lines_match_source(cited, source_lines)
 
 
 def _query(question: dict[str, Any]) -> str:
