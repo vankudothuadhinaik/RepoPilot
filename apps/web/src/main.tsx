@@ -83,6 +83,25 @@ function App() {
     }
   }
 
+  async function reindexRepository(repo: Repo) {
+    setBusy(true);
+    setMessage(`Re-indexing ${repo.name}…`);
+    try {
+      const response = await fetch(`/api/repos/${repo.id}/index`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail ?? "Re-index failed");
+      setRepos((current) => current.map((item) => item.id === repo.id ? { ...item, ...data } : item));
+      const delta = data.index_delta;
+      setMessage(
+        `Re-indexed ${repo.name}: ${delta.added} added, ${delta.updated} updated, ${delta.removed} removed, ${delta.unchanged} unchanged.`,
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Re-index failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function search(event: React.FormEvent) {
     event.preventDefault();
     if (!selected || !query.trim()) return;
@@ -142,9 +161,12 @@ function App() {
         <input value={path} onChange={(event) => setPath(event.target.value)} placeholder="Absolute local repository path" required />
         <button disabled={busy}>{busy ? "Working…" : "Index repository"}</button>
       </form>
-      <div className="repo-list">{repos.map((repo) => <button className={`repo ${selected === repo.id ? "active" : ""}`} key={repo.id} onClick={() => selectRepository(repo.id)}>
-        <span className="repo-icon">⌘</span><span className="repo-name"><strong>{repo.name}</strong><small>{repo.root_path}</small></span><span className="count">{repo.file_count} files · {repo.symbol_count} symbols</span>
-      </button>)}</div>
+      <div className="repo-list">{repos.map((repo) => <div className="repo-row" key={repo.id}>
+        <button className={`repo ${selected === repo.id ? "active" : ""}`} onClick={() => selectRepository(repo.id)}>
+          <span className="repo-icon">⌘</span><span className="repo-name"><strong>{repo.name}</strong><small>{repo.root_path}</small></span><span className="count">{repo.file_count} files · {repo.symbol_count} symbols</span>
+        </button>
+        <button disabled={busy} onClick={() => void reindexRepository(repo)}>Re-index</button>
+      </div>)}</div>
     </section>
     <section className="panel">
       <div className="section-head"><div><p className="eyebrow">02 / INVESTIGATE</p><h2>Search the codebase</h2></div><span className="pill">FTS5 SEARCH</span></div>
