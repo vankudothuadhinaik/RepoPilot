@@ -17,13 +17,13 @@ def test_run_matrix_records_commit_and_redacts_root(monkeypatch, tmp_path):
         },
     )
 
-    report = benchmark_matrix.run_matrix([root], redact_paths=True)
+    report = benchmark_matrix.run_matrix(\n        [root], redact_paths=True, source_revisions={"private-project": "abc123"}\n    )
 
     assert report["schema_version"] == 2
     assert report["repository_count"] == 1
     assert report["path_redaction"] == "enabled"
     assert report["reports"][0]["root"] == "<redacted>"
-    assert report["reports"][0]["commit"] == "abc123"
+    assert report["reports"][0]["commit"] == "abc123"\n    assert report["reports"][0]["source_commit"] == "abc123"
     assert str(root) not in str(report)
 
 
@@ -39,3 +39,9 @@ def test_run_matrix_rejects_duplicate_roots(tmp_path, monkeypatch):
 def test_run_matrix_requires_existing_repository_roots(tmp_path):
     with pytest.raises(FileNotFoundError):
         benchmark_matrix.run_matrix([tmp_path / "missing"])
+
+
+def test_parse_source_revision_requires_name_and_sha():
+    assert benchmark_matrix.parse_source_revision("repo=abc123") == ("repo", "abc123")
+    with pytest.raises(Exception):
+        benchmark_matrix.parse_source_revision("missing-sha")
