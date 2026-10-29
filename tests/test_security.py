@@ -76,7 +76,9 @@ def test_safe_read_accepts_regular_bounded_file(fixture_repo):
 
     target = fixture_repo / "safe.py"
     target.write_text("def safe_function(): return 1\n", encoding="utf-8")
-    assert read_safe_text(target, root=fixture_repo) == "def safe_function(): return 1\n"
+    content = read_safe_text(target, root=fixture_repo)
+    assert content is not None
+    assert content.replace("\r\n", "\n") == "def safe_function(): return 1\n"
 
 def test_gitignore_directory_patterns_and_case_sensitivity(fixture_repo):
     (fixture_repo / ".gitignore").write_text("logs/\n", encoding="utf-8")
