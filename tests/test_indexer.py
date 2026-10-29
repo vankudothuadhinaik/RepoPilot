@@ -1,6 +1,6 @@
 import pytest
 
-from repopilot.indexer import index_repository, parse_python
+from repopilot.indexer import PARSER_VERSION, index_repository, parse_python
 
 
 def test_extracts_python_symbols_and_skips_secrets(fixture_repo):
@@ -32,7 +32,7 @@ def test_known_hashes_skip_parsing_unchanged_files(fixture_repo, monkeypatch):
         raise AssertionError("unchanged file should not be parsed")
 
     monkeypatch.setattr(indexer, "parse_python", fail_if_parsed)
-    result = indexer.index_repository(fixture_repo, known_hashes=known_hashes)
+    result = indexer.index_repository(fixture_repo, known_hashes=known_hashes, known_parser_version=PARSER_VERSION)
     assert result["files"]
     assert result["symbols"] == []
     assert result["imports"] == []
