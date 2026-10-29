@@ -231,3 +231,49 @@ def test_concurrent_same_snapshot_indexing_preserves_sqlite_integrity(fixture_re
     with store.connect() as db:
         assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+
+
+def test_legacy_database_schema_is_upgraded(tmp_path):
+    import sqlite3
+
+    database = tmp_path / "legacy.sqlite3"
+    with sqlite3.connect(database) as db:
+        db.execute("""
+            CREATE TABLE repositories (
+                id TEXT PRIMARY KEY, name TEXT NOT NULL, root_path TEXT NOT NULL UNIQUE,
+                branch TEXT, indexed_commit TEXT, status TEXT NOT NULL DEFAULT 'indexed',
+                indexed_at TEXT NOT NULL, file_count INTEGER NOT NULL DEFAULT 0,
+                symbol_count INTEGER NOT NULL DEFAULT 0, errors_json TEXT NOT NULL DEFAULT '[]'
+            )
+        """)
+        db.execute("""
+            INSERT INTO repositories(id,name,root_path,indexed_at)
+            VALUES ('legacy-id','legacy','/legacy','2025-01-01T00:00:00+00:00')
+        """)
+
+    upgraded = Store(database)
+    assert upgraded.repository("legacy-id")["parser_version"] == "1"
+    with upgraded.connect() as db:
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(repositories)")}
+    assert "parser_version" in columns
+
+
+def test_concurrent_indexing_from_separate_store_instances(fixture_repo, tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    database = tmp_path / "shared.sqlite3"
+    stores = [Store(database) for _ in range(4)]
+    snapshot = index_repository(fixture_repo)
+
+    def persist(index):
+        return stores[index % len(stores)].index(snapshot)
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(persist, range(12)))
+
+    assert len({result["id"] for result in results}) == 1
+    repo_id = results[-1]["id"]
+    assert stores[0].get_file(repo_id, "app.py") is not None
+    with stores[0].connect() as db:
+        assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
