@@ -354,12 +354,12 @@
     {
       "id": "multirepo-positive-015",
       "repository": "matching-engine",
-      "query": "cancelOrder orders_.find id",
+      "query": "addOrder orders contains id price quantity",
       "expected_path": "src/OrderBook.cpp",
-      "expected_start_line": 79,
-      "expected_end_line": 80,
-      "category": "order_lifecycle",
-      "expected_fact": "Cancellation checks whether the order ID exists before changing the book"
+      "expected_start_line": 12,
+      "expected_end_line": 12,
+      "category": "order_validation",
+      "expected_fact": "Order insertion rejects invalid prices, zero quantities, and duplicate identifiers"
     },
     {
       "id": "multirepo-positive-016",
