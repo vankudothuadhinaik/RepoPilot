@@ -65,3 +65,26 @@ def test_provider_diagnostic_capture_records_only_safe_error_categories(caplog):
 
     assert handler.codes == ["provider_timeout", "provider_http_error"]
     assert "secret" not in caplog.text.lower()
+
+
+def test_provider_corpus_excludes_labels_and_external_fixtures(tmp_path):
+    from evals.run_provider_eval import _prepare_provider_corpus
+
+    root = tmp_path / "checkout"
+    (root / "src").mkdir(parents=True)
+    (root / "evals" / "datasets").mkdir(parents=True)
+    (root / "evals" / "corpora" / "other").mkdir(parents=True)
+    (root / "README.md").write_text("# Demo\n", encoding="utf-8")
+    (root / "src" / "app.py").write_text("def main():\n    return 1\n", encoding="utf-8")
+    (root / "evals" / "datasets" / "ground_truth.json").write_text(
+        '{"answer":"label"}', encoding="utf-8"
+    )
+    (root / "evals" / "corpora" / "other" / "secret.py").write_text(
+        "fixture data", encoding="utf-8"
+    )
+
+    corpus = _prepare_provider_corpus(root, tmp_path / "provider-corpus")
+
+    assert (corpus / "src" / "app.py").is_file()
+    assert not (corpus / "evals" / "datasets").exists()
+    assert not (corpus / "evals" / "corpora").exists()
