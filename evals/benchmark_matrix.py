@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,27 @@ def parse_source_revision(value: str) -> tuple[str, str]:
     return name.strip(), revision.strip()
 
 
+def _materialize_snapshot(root: Path, destination: Path) -> Path:
+    """Expand a pinned JSON source bundle into a temporary repository tree."""
+    snapshot_path = root / "snapshot.json"
+    if not snapshot_path.is_file():
+        return root
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    if not isinstance(snapshot.get("files"), dict):
+        raise ValueError(f"snapshot bundle has no files mapping: {root.name}")
+    destination.mkdir(parents=True, exist_ok=False)
+    for raw_path, source_text in snapshot["files"].items():
+        relative = Path(raw_path)
+        if relative.is_absolute() or ".." in relative.parts or "\\" in raw_path:
+            raise ValueError(f"unsafe snapshot path in {root.name}")
+        if not isinstance(source_text, str):
+            raise ValueError(f"snapshot content must be text in {root.name}")
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source_text, encoding="utf-8")
+    return destination
+
+
 def run_matrix(
     roots: list[Path],
     *,
@@ -32,12 +54,20 @@ def run_matrix(
     if len(set(resolved_roots)) != len(resolved_roots):
         raise ValueError("repository roots must be distinct")
 
-    reports = [run(root) for root in resolved_roots]
-    for report in reports:
-        if source_revisions and report["repository"] in source_revisions:
-            report["source_commit"] = source_revisions[report["repository"]]
-        if redact_paths:
-            report["root"] = "<redacted>"
+    with tempfile.TemporaryDirectory(prefix="repopilot-benchmark-matrix-") as temporary:
+        temporary_root = Path(temporary)
+        reports = []
+        for root in resolved_roots:
+            materialized = _materialize_snapshot(
+                root, temporary_root / root.name
+            )
+            report = run(materialized)
+            report["repository"] = root.name
+            if source_revisions and root.name in source_revisions:
+                report["source_commit"] = source_revisions[root.name]
+            if redact_paths:
+                report["root"] = "<redacted>"
+            reports.append(report)
     return {
         "schema_version": 2,
         "repository_count": len(reports),
