@@ -151,7 +151,7 @@ def extract_imports(path: str, content: str, language: str) -> list[dict[str, st
         ):
             add(match.group(1), "import")
         for block in re.finditer(
-            r"^\s*import\s*\((.*?)^\s*\)", content,
+            r"^[ \\t]*import[ \\t]*\\((.*?)^[ \\t]*\\)", content,
             flags=re.MULTILINE | re.DOTALL,
         ):
             for target in re.findall(r'["\']([^"\']+)["\']', block.group(1)):
