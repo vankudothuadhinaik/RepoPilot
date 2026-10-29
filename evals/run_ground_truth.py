@@ -104,17 +104,27 @@ def evaluate(root: Path) -> dict[str, Any]:
                     for symbol in symbol_candidates
                 )
                 symbol_hits += int(symbol_ok)
+                evidence_candidates = [
+                    {
+                        "path": item["path"],
+                        "start_line": item["start_line"],
+                        "end_line": item["end_line"],
+                        "source_lines_valid": _citation_matches_source(item, root),
+                    }
+                    for item in ask.json()["evidence"]
+                ]
                 citation_ok = any(
-                    evidence["path"] == expected_path
-                    and evidence["start_line"] <= question["expected_end_line"]
-                    and evidence["end_line"] >= question["expected_start_line"]
-                    and _citation_matches_source(evidence, root)
-                    for evidence in ask.json()["evidence"]
+                    item["path"] == expected_path
+                    and item["start_line"] <= question["expected_end_line"]
+                    and item["end_line"] >= question["expected_start_line"]
+                    and item["source_lines_valid"]
+                    for item in evidence_candidates
                 )
                 citation_hits += int(citation_ok)
                 category_counts[category]["passed"] += int(path_ok and symbol_ok and citation_ok)
                 details.append({"id": question["id"], "category": category, "rank": rank, "path": path_ok,
-                                "symbol": symbol_ok, "symbol_candidates": symbol_candidates, "citation": citation_ok})
+                                "symbol": symbol_ok, "symbol_candidates": symbol_candidates,
+                                "citation": citation_ok, "evidence_candidates": evidence_candidates})
             else:
                 body = ask.json()
                 abstained = body["abstained"] and not body["evidence"]
