@@ -192,7 +192,7 @@ def ask_repository(repo_id: str, payload: AskRequest) -> dict[str, Any]:
         end_line = min(len(lines), start_line + window_size - 1)
         context_start = max(1, start_line - 2)
         context_end = min(len(lines), end_line + 2)
-        snippet = "\\n".join(
+        snippet = "\n".join(
             f"{line_number}: {lines[line_number - 1]}"
             for line_number in range(context_start, context_end + 1)
         )
