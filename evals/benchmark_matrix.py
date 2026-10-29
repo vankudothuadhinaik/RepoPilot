@@ -20,12 +20,16 @@ def parse_source_revision(value: str) -> tuple[str, str]:
     return name.strip(), revision.strip()
 
 
-def _materialize_snapshot(root: Path, destination: Path) -> Path:
+def _materialize_snapshot(
+    root: Path, destination: Path, expected_commit: str | None = None
+) -> Path:
     """Expand a pinned JSON source bundle into a temporary repository tree."""
     snapshot_path = root / "snapshot.json"
     if not snapshot_path.is_file():
         return root
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    if expected_commit and snapshot.get("commit") != expected_commit:
+        raise ValueError(f"pinned source revision mismatch: {root.name}")
     if not isinstance(snapshot.get("files"), dict):
         raise ValueError(f"snapshot bundle has no files mapping: {root.name}")
     destination.mkdir(parents=True, exist_ok=False)
@@ -59,7 +63,9 @@ def run_matrix(
         reports = []
         for root in resolved_roots:
             materialized = _materialize_snapshot(
-                root, temporary_root / root.name
+                root,
+                temporary_root / root.name,
+                (source_revisions or {}).get(root.name),
             )
             report = run(materialized)
             report["repository"] = root.name
