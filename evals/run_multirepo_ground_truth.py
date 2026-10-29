@@ -122,7 +122,14 @@ def evaluate(root: Path, dataset_path: Path | None = None) -> dict[str, Any]:
                 response = client.post(
                     "/api/repos", json={"path": str(corpus_root)}, headers=headers
                 )
-                response.raise_for_status()
+                if response.status_code >= 400:
+                    try:
+                        detail = response.json().get("detail", "registration failed")
+                    except ValueError:
+                        detail = "registration failed with a non-JSON response"
+                    raise RuntimeError(
+                        f"failed to register corpus {name!r}: HTTP {response.status_code}: {detail}"
+                    )
                 repo_ids[name] = response.json()["id"]
 
             positive = [item for item in questions if item.get("expected_path")]
