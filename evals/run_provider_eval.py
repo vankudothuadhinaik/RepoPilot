@@ -9,10 +9,36 @@ import re
 import tempfile
 import time
 from pathlib import Path
-from urllib.parse import urlsplit
 from typing import Any
+from urllib.parse import urlsplit
 
 _CITATION = re.compile(r"\[\[([^\]]+)\]\]")
+
+
+class _ProviderDiagnosticCapture(logging.Handler):
+    """Capture safe error categories without provider message bodies."""
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.WARNING)
+        self.codes: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        message = record.getMessage().lower()
+        if "provider timed out" in message:
+            code = "provider_timeout"
+        elif "provider returned http status" in message:
+            code = "provider_http_error"
+        elif "provider connection failed" in message:
+            code = "provider_connection_error"
+        elif "response could not be parsed" in message:
+            code = "malformed_provider_response"
+        elif "invalid provider configuration" in message:
+            code = "invalid_provider_configuration"
+        elif "rejected:" in message:
+            code = "provider_response_rejected"
+        else:
+            return
+        self.codes.append(code)
 
 def citation_paths(answer: str) -> list[str]:
     """Return paths cited with RepoPilot's exact [[relative/path]] syntax."""
