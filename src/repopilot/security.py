@@ -204,7 +204,7 @@ def _read_windows_safe_text(path: Path, root_resolved: Path, relative: Path) -> 
         if os.path.commonpath((root_norm, final_norm)) != root_norm:
             return None
 
-        fd = int(msvcrt.open_osfhandle(
+        fd = int(getattr(msvcrt, "open_osfhandle")(  # noqa: B009
             handle, os.O_RDONLY | getattr(os, "O_BINARY", 0)
         ))
         handle = invalid_handle
