@@ -104,11 +104,21 @@ def evaluate(root: Path, dataset_path: Path | None = None) -> dict[str, Any]:
                     _clean_root(root, corpus_root)
                 else:
                     corpus_root = temporary_root / "corpus" / name
-                    source_root = root / metadata["snapshot"]
-                    source_root = source_root.resolve(strict=True)
+                    source_root = (root / metadata["snapshot"]).resolve(strict=True)
                     if not source_root.is_relative_to(root):
                         raise ValueError(f"corpus path escapes checkout for {name!r}")
-                    shutil.copytree(source_root, corpus_root)
+                    snapshot_path = source_root / "snapshot.json"
+                    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+                    if snapshot.get("commit") != metadata.get("commit"):
+                        raise ValueError(f"pinned source revision mismatch for {name!r}")
+                    corpus_root.mkdir(parents=True)
+                    for relative_path, source_text in snapshot.get("files", {}).items():
+                        relative = Path(relative_path)
+                        if relative.is_absolute() or ".." in relative.parts or "\\" in relative_path:
+                            raise ValueError(f"unsafe snapshot path in corpus {name!r}")
+                        target = corpus_root / relative
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_text(source_text, encoding="utf-8")
                 corpus_roots[name] = corpus_root
 
             from fastapi.testclient import TestClient
