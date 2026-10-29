@@ -69,3 +69,18 @@ def test_incremental_reindex_keeps_unchanged_files_searchable(fixture_repo, stor
     assert details["changed"] == 0
     assert details["removed"] == 0
 
+
+
+
+def test_search_filters_are_applied_before_limit_and_use_directory_boundaries(fixture_repo, store):
+    (fixture_repo / "src").mkdir()
+    (fixture_repo / "src" / "target.py").write_text("def marker_target():\n    return 'marker'\n", encoding="utf-8")
+    (fixture_repo / "src-old").mkdir()
+    (fixture_repo / "src-old" / "target.py").write_text("def marker_old():\n    return 'marker'\n", encoding="utf-8")
+    repo = store.index(index_repository(fixture_repo))
+
+    results = store.search(repo["id"], "marker", limit=1, language="python", path_prefix="src")
+
+    assert len(results) == 1
+    assert results[0]["path"] == "src/target.py"
+    assert store.search(repo["id"], "marker", path_prefix="../src") == []
