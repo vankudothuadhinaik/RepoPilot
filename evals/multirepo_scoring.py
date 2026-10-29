@@ -127,6 +127,58 @@ def _evaluate_question(
     )
 
 
+def _retrieval_metrics(positive_results: list[dict[str, Any]]) -> dict[str, Any]:
+    ranks = [item.get("rank_at_5") for item in positive_results]
+    total = len(positive_results)
+    return {
+        "recall_at_1": round(sum(rank == 1 for rank in ranks) / total, 4),
+        "recall_at_5": round(sum(rank is not None for rank in ranks) / total, 4),
+        "mrr_at_5": round(sum(1 / rank if rank else 0.0 for rank in ranks) / total, 4),
+    }
+
+
+def _evidence_metrics(
+    positive_results: list[dict[str, Any]],
+    symbol_results: list[dict[str, Any]],
+) -> dict[str, Any]:
+    total = len(positive_results)
+    return {
+        "citation_range_validity": round(
+            sum(bool(item["citation_range_valid"]) for item in positive_results) / total, 4
+        ),
+        "symbol_range_accuracy": (
+            round(
+                sum(bool(item["symbol_range_valid"]) for item in symbol_results)
+                / len(symbol_results), 4
+            ) if symbol_results else None
+        ),
+    }
+
+
+def _abstention_metrics(negative_results: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "unsupported_abstention_rate": round(
+            sum(bool(item["unsupported_abstained"]) for item in negative_results)
+            / len(negative_results), 4
+        )
+    }
+
+
+def _category_metrics(details: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    counts: dict[str, dict[str, int]] = {}
+    for detail in details:
+        values = counts.setdefault(detail["category"], {"total": 0, "passed": 0})
+        values["total"] += 1
+        values["passed"] += int(bool(detail["passed"]))
+    return {
+        name: {
+            "passed": value["passed"], "total": value["total"],
+            "accuracy": round(value["passed"] / value["total"], 4),
+        }
+        for name, value in sorted(counts.items())
+    }
+
+
 def _build_report(
     dataset: dict[str, Any], dataset_bytes: bytes, questions: list[dict[str, Any]],
     details: list[dict[str, Any]],
@@ -137,42 +189,16 @@ def _build_report(
     symbol_cases = [item for item in positives if item.get("expected_symbol")]
     positive_results = [by_id[item["id"]] for item in positives]
     negative_results = [by_id[item["id"]] for item in negatives]
-    ranks = [item.get("rank_at_5") for item in positive_results]
-    category_counts: dict[str, dict[str, int]] = {}
-    for detail in details:
-        values = category_counts.setdefault(detail["category"], {"total": 0, "passed": 0})
-        values["total"] += 1
-        values["passed"] += int(bool(detail["passed"]))
+    symbol_results = [by_id[item["id"]] for item in symbol_cases]
     metrics = {
         "positive_queries": len(positives),
         "negative_queries": len(negatives),
         "symbol_range_cases": len(symbol_cases),
-        "recall_at_1": round(sum(rank == 1 for rank in ranks) / len(positives), 4),
-        "recall_at_5": round(sum(rank is not None for rank in ranks) / len(positives), 4),
-        "mrr_at_5": round(
-            sum(1 / rank if rank else 0.0 for rank in ranks) / len(positives), 4
-        ),
-        "citation_range_validity": round(
-            sum(bool(item["citation_range_valid"]) for item in positive_results) / len(positives), 4
-        ),
-        "symbol_range_accuracy": (
-            round(
-                sum(bool(by_id[item["id"]]["symbol_range_valid"]) for item in symbol_cases)
-                / len(symbol_cases), 4
-            ) if symbol_cases else None
-        ),
-        "unsupported_abstention_rate": round(
-            sum(bool(item["unsupported_abstained"]) for item in negative_results) / len(negatives), 4
-        ),
+        **_retrieval_metrics(positive_results),
+        **_evidence_metrics(positive_results, symbol_results),
+        **_abstention_metrics(negative_results),
         "passed_cases": sum(bool(item["passed"]) for item in details),
         "total_cases": len(details),
-    }
-    category_metrics = {
-        name: {
-            "passed": value["passed"], "total": value["total"],
-            "accuracy": round(value["passed"] / value["total"], 4),
-        }
-        for name, value in sorted(category_counts.items())
     }
     return {
         "schema_version": 1,
@@ -183,7 +209,7 @@ def _build_report(
         "repositories": dataset.get("repositories"),
         "runtime": {"python": sys.version.split()[0], "platform": platform.platform()},
         "metrics": metrics,
-        "category_metrics": category_metrics,
+        "category_metrics": _category_metrics(details),
         "passed": all(bool(item["passed"]) for item in details),
         "results": details,
         "limitations": [
