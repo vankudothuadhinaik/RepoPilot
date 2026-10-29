@@ -3,6 +3,7 @@ from __future__ import annotations
 import hmac
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -156,7 +157,6 @@ def ask_repository(repo_id: str, payload: AskRequest) -> dict[str, Any]:
         # Prefer a compact window around actual query-term matches. If none match,
         # cite a bounded beginning-of-file overview rather than pretending there was
         # a keyword match; the returned evidence still points to the exact indexed file.
-        import re
         terms = [
             term.casefold() for term in re.findall(r"[A-Za-z0-9_./:-]+", payload.question)
             if len(term) >= 2
