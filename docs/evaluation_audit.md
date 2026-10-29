@@ -105,11 +105,12 @@ versioning change, not silently inferred by the evaluator.
 
 ## Integrity and evaluation controls
 
-- The single-repository evaluator copies the checkout to a temporary corpus,
-  applies `.gitignore` rules, and excludes labels and generated evaluation
-  artifacts. The multirepository cleaner excludes `evals/datasets` and
-  `evals/corpora` from the RepoPilot corpus. Existing tests cover these
-  exclusions; this prevents self-referential retrieval of the labels.
+- The single-repository and provider evaluators materialize each question's
+  recorded full `source_revision` with `git archive`; missing revisions fail
+  closed. Materialized snapshots exclude ground-truth datasets, audit reports,
+  external fixture corpora, and generated evaluation artifacts. The multirepo
+  evaluator uses the same materializer for its pinned RepoPilot revision.
+  Regression tests cover revision pinning and exclusions.
 - Cross-dataset overlap is intentional: the RepoPilot cases are reused to
   exercise both evaluators. It must not be described as an independent second
   corpus or independent review.
@@ -128,8 +129,12 @@ bundles before indexing them.
 
 ```text
 PYTHONPATH=src python evals/run_ground_truth.py --root .
-PASS: 13 positive cases and 2 unsupported cases (15/15); Recall@5 13/13,
-symbol accuracy 13/13, citation accuracy 13/13, unsupported abstention 2/2.
+PASS: 13 positive cases and 2 unsupported cases (15/15); Recall@1 12/13,
+Recall@5 13/13, MRR@5 0.9423, symbol accuracy 13/13, citation accuracy 13/13,
+unsupported abstention 2/2. The runner reported source_mode git_revision and
+verified all three recorded revisions: 52e2e6b212405087fc79fd46ec3bb0edee5dc952,
+773b4de9ddc72f611763cb642c25ba2ea9e7b4dc, and
+8645ac8fd28ba14365a0e61269bee015eb3db778.
 
 PYTHONPATH=src python evals/run_multirepo_ground_truth.py --root . --output multirepo_ground_truth_results.json
 PASS: 41/41 cases; Recall@1 29/31, Recall@5 31/31, MRR@5 0.9543,

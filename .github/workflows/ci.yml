@@ -67,7 +67,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Live provider evaluation (optional)
-        if: ${{ env.OPENAI_EVAL_ENABLED == 'true' && matrix.python-version == '3.11' }}
+        if: ${{ env.OPENAI_EVAL_ENABLED == 'true' && matrix.python-version == '3.11' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) }}
         continue-on-error: true
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -75,7 +75,7 @@ jobs:
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4.1-mini' }}
         run: PYTHONPATH=src python evals/run_provider_eval.py --root . --output provider-evaluation.json
       - name: Publish live provider evaluation report
-        if: ${{ always() && env.OPENAI_EVAL_ENABLED == 'true' && matrix.python-version == '3.11' }}
+        if: ${{ always() && env.OPENAI_EVAL_ENABLED == 'true' && matrix.python-version == '3.11' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) }}
         uses: actions/upload-artifact@v7
         with:
           name: repopilot-live-provider-evaluation-${{ github.sha }}-py${{ matrix.python-version }}
@@ -83,7 +83,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
       - name: Summarize live provider evaluation
-        if: ${{ always() && env.OPENAI_EVAL_ENABLED == 'true' && matrix.python-version == '3.11' }}
+        if: ${{ always() && env.OPENAI_EVAL_ENABLED == 'true' && matrix.python-version == '3.11' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) }}
         run: |
           python - <<'PY'
           import json

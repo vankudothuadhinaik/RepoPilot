@@ -4,11 +4,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
+
+try:
+    from evals.multirepo_corpus import _materialize_repo_revision
+except ModuleNotFoundError:
+    from multirepo_corpus import _materialize_repo_revision
 
 
 def _citation_matches_source(item: dict[str, Any], root: Path) -> bool:
@@ -32,30 +36,27 @@ def _citation_matches_source(item: dict[str, Any], root: Path) -> bool:
 
 
 def evaluate(root: Path) -> dict[str, Any]:
+    root = root.resolve()
+    dataset = json.loads(
+        (Path(__file__).parent / "datasets" / "ground_truth.json").read_text(encoding="utf-8")
+    )
+    questions = dataset["questions"]
+    source_revisions = sorted({str(question.get("source_revision", "")) for question in questions})
+    if not source_revisions or any(
+        len(revision) != 40 or any(char not in "0123456789abcdef" for char in revision.lower())
+        for revision in source_revisions
+    ):
+        raise ValueError("every ground-truth question must declare a full source_revision SHA")
+
     os.environ.setdefault("REP_PILOT_API_TOKEN", "ground-truth-validation-token")
     with tempfile.TemporaryDirectory() as directory:
         os.environ["REP_PILOT_DATA_DIR"] = directory
-        # Keep the labels and literal query strings out of the indexed corpus.
-        # Otherwise the evaluator can retrieve its own ground-truth JSON as evidence,
-        # inflating scores through benchmark leakage rather than source retrieval.
-        corpus_root = Path(directory) / "corpus" / root.name
-        shutil.copytree(
-            root,
-            corpus_root,
-            ignore=shutil.ignore_patterns(
-                ".git", "__pycache__", ".venv", "node_modules",
-                ".pytest_cache", ".mypy_cache", "dist", "build",
-                "retrieval_benchmark_results.json", "repository_benchmark_results.json",
-                "provider-evaluation.json", "coverage.xml",
-            ),
-        )
-        # Keep labels and audit narratives out of the indexed corpus. The audit
-        # report repeats expected facts and unsupported queries, so indexing it
-        # would create self-referential evidence and invalidate abstention tests.
-        for relative in ("evals/datasets/ground_truth.json", "docs/evaluation_audit.md"):
-            candidate = corpus_root / relative
-            if candidate.is_file():
-                candidate.unlink()
+        corpus_roots = {
+            revision: _materialize_repo_revision(
+                root, revision, Path(directory) / "corpora" / revision
+            )
+            for revision in source_revisions
+        }
 
         from fastapi.testclient import TestClient
 
@@ -63,12 +64,13 @@ def evaluate(root: Path) -> dict[str, Any]:
 
         client = TestClient(app)
         headers = {"Authorization": "Bearer ground-truth-validation-token"}
-        registration = client.post("/api/repos", json={"path": str(corpus_root)}, headers=headers)
-        registration.raise_for_status()
-        repo_id = registration.json()["id"]
-        questions = json.loads(
-            (Path(__file__).parent / "datasets" / "ground_truth.json").read_text(encoding="utf-8")
-        )["questions"]
+        repo_ids: dict[str, str] = {}
+        for revision, corpus_root in corpus_roots.items():
+            registration = client.post(
+                "/api/repos", json={"path": str(corpus_root)}, headers=headers
+            )
+            registration.raise_for_status()
+            repo_ids[revision] = registration.json()["id"]
 
         positive = [question for question in questions if question["expected_path"]]
         negative = [question for question in questions if not question["expected_path"]]
@@ -78,6 +80,9 @@ def evaluate(root: Path) -> dict[str, Any]:
         category_counts: dict[str, dict[str, int]] = {}
 
         for question in questions:
+            revision = str(question["source_revision"])
+            corpus_root = corpus_roots[revision]
+            repo_id = repo_ids[revision]
             query = question.get("query") or "".join(chr(value) for value in question["query_codepoints"])
             payload = {"question": query, "limit": 5}
             search = client.post(f"/api/repos/{repo_id}/search", json=payload, headers=headers)
@@ -145,15 +150,21 @@ def evaluate(root: Path) -> dict[str, Any]:
                 )
                 citation_hits += int(citation_ok)
                 category_counts[category]["passed"] += int(path_ok and symbol_ok and citation_ok)
-                details.append({"id": question["id"], "category": category, "rank": rank, "path": path_ok,
-                                "symbol": symbol_ok, "symbol_candidates": symbol_candidates,
-                                "citation": citation_ok, "evidence_candidates": evidence_candidates})
+                details.append({
+                    "id": question["id"], "source_revision": revision,
+                    "category": category, "rank": rank, "path": path_ok,
+                    "symbol": symbol_ok, "symbol_candidates": symbol_candidates,
+                    "citation": citation_ok, "evidence_candidates": evidence_candidates,
+                })
             else:
                 body = ask.json()
                 abstained = body["abstained"] and not body["evidence"]
                 category_counts[category]["passed"] += int(abstained)
-                details.append({"id": question["id"], "category": category, "abstained": abstained,
-                                "evidence_count": len(body["evidence"])})
+                details.append({
+                    "id": question["id"], "source_revision": revision,
+                    "category": category, "abstained": abstained,
+                    "evidence_count": len(body["evidence"]),
+                })
 
         positive_count = len(positive)
         negative_count = len(negative)
@@ -184,11 +195,14 @@ def evaluate(root: Path) -> dict[str, Any]:
         return {
             "title": "RepoPilot source-grounded validation",
             "root": str(root),
+            "source_mode": "git_revision",
+            "source_revisions_verified": source_revisions,
             "excluded_self_referential_dataset": "evals/datasets/ground_truth.json",
             "metrics": metrics,
             "category_metrics": category_metrics,
-                "passed": passed, "results": details}
-
+            "passed": passed,
+            "results": details,
+        }
 
 def main() -> None:
     parser = argparse.ArgumentParser()

@@ -9,13 +9,17 @@ import math
 import os
 import platform
 import re
-import shutil
 import sys
 import tempfile
 import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
+
+try:
+    from evals.multirepo_corpus import _materialize_repo_revision
+except ModuleNotFoundError:
+    from multirepo_corpus import _materialize_repo_revision
 
 _CITATION = re.compile(r"\[\[([^\]]+)\]\]")
 
@@ -171,20 +175,6 @@ def score_case(question: dict[str, Any], response: dict[str, Any], root: Path) -
         "provider_answer_generated": response.get("mode") == "llm",
     }
 
-def _prepare_provider_corpus(root: Path, destination: Path) -> Path:
-    """Copy only source files into the provider corpus; exclude evaluation labels and fixtures."""
-    shutil.copytree(
-        root,
-        destination,
-        ignore=shutil.ignore_patterns(
-            ".git", "__pycache__", ".venv", "node_modules", ".pytest_cache",
-            ".mypy_cache", "dist", "build", "datasets", "corpora",
-            "retrieval_benchmark_results.json", "repository_benchmark_results.json",
-            "provider-evaluation.json", "coverage.xml",
-        ),
-    )
-    return destination
-
 
 def evaluate(root: Path) -> dict[str, Any]:
     """Run the reviewed question set through the real API with a configured provider."""
@@ -195,27 +185,43 @@ def evaluate(root: Path) -> dict[str, Any]:
     dataset_bytes = dataset_path.read_bytes()
     dataset = json.loads(dataset_bytes)
     questions = dataset["questions"]
+    source_revisions = sorted({str(question.get("source_revision", "")) for question in questions})
+    if not source_revisions or any(
+        len(revision) != 40 or any(char not in "0123456789abcdef" for char in revision.lower())
+        for revision in source_revisions
+    ):
+        raise ValueError("every provider-evaluation question must declare a full source_revision SHA")
     previous_token = os.environ.get("REP_PILOT_API_TOKEN")
     previous_data_dir = os.environ.get("REP_PILOT_DATA_DIR")
     try:
         with tempfile.TemporaryDirectory(prefix="repopilot-provider-eval-") as data_dir:
             os.environ["REP_PILOT_API_TOKEN"] = "provider-evaluation-local-token"
             os.environ["REP_PILOT_DATA_DIR"] = data_dir
-            corpus_root = _prepare_provider_corpus(root, Path(data_dir) / "source-corpus")
+            corpus_roots = {
+                revision: _materialize_repo_revision(
+                    root, revision, Path(data_dir) / "corpora" / revision
+                )
+                for revision in source_revisions
+            }
             from fastapi.testclient import TestClient
 
             from repopilot.api import app
 
             client = TestClient(app)
             headers = {"Authorization": "Bearer provider-evaluation-local-token"}
-            registration = client.post(
-                "/api/repos", json={"path": str(corpus_root)}, headers=headers
-            )
-            registration.raise_for_status()
-            repo_id = registration.json()["id"]
+            repo_ids: dict[str, str] = {}
+            for revision, corpus_root in corpus_roots.items():
+                registration = client.post(
+                    "/api/repos", json={"path": str(corpus_root)}, headers=headers
+                )
+                registration.raise_for_status()
+                repo_ids[revision] = registration.json()["id"]
             results, durations = [], []
             provider_logger = logging.getLogger("repopilot.llm")
             for question in questions:
+                revision = str(question["source_revision"])
+                corpus_root = corpus_roots[revision]
+                repo_id = repo_ids[revision]
                 query = question.get("query") or "".join(
                     chr(value) for value in question.get("query_codepoints", [])
                 )
@@ -387,6 +393,8 @@ def evaluate(root: Path) -> dict[str, Any]:
                 "dataset_sha256": hashlib.sha256(dataset_bytes).hexdigest(),
                 "authoring": dataset.get("authoring"),
                 "repositories": dataset.get("repositories"),
+                "source_mode": "git_revision",
+                "source_revisions_verified": source_revisions,
                 "runtime": {"python": sys.version.split()[0], "platform": platform.platform()},
                 "question_count": len(questions),
                 "positive_count": len(positives), "negative_count": len(negatives),

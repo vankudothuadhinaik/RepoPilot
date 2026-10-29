@@ -67,27 +67,25 @@ def test_provider_diagnostic_capture_records_only_safe_error_categories(caplog):
     assert "secret" not in caplog.text.lower()
 
 
-def test_provider_corpus_excludes_labels_and_external_fixtures(tmp_path):
-    from evals.run_provider_eval import _prepare_provider_corpus
+def test_provider_pinned_corpus_excludes_evaluation_artifacts(tmp_path):
+    import subprocess
+    from pathlib import Path
 
-    root = tmp_path / "checkout"
-    (root / "src").mkdir(parents=True)
-    (root / "evals" / "datasets").mkdir(parents=True)
-    (root / "evals" / "corpora" / "other").mkdir(parents=True)
-    (root / "README.md").write_text("# Demo\n", encoding="utf-8")
-    (root / "src" / "app.py").write_text("def main():\n    return 1\n", encoding="utf-8")
-    (root / "evals" / "datasets" / "ground_truth.json").write_text(
-        '{"answer":"label"}', encoding="utf-8"
-    )
-    (root / "evals" / "corpora" / "other" / "secret.py").write_text(
-        "fixture data", encoding="utf-8"
-    )
+    from evals.multirepo_corpus import _materialize_repo_revision
 
-    corpus = _prepare_provider_corpus(root, tmp_path / "provider-corpus")
+    root = Path(__file__).resolve().parents[1]
+    revision = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    corpus = _materialize_repo_revision(root, revision, tmp_path / "provider-corpus")
 
-    assert (corpus / "src" / "app.py").is_file()
-    assert not (corpus / "evals" / "datasets").exists()
+    assert (corpus / "src" / "repopilot").is_dir()
+    assert not (corpus / "evals" / "datasets" / "ground_truth.json").exists()
     assert not (corpus / "evals" / "corpora").exists()
+    assert not (corpus / "docs" / "evaluation_audit.md").exists()
 
 
 def test_positive_case_checks_expected_fact_anchor_range_and_quoted_evidence(tmp_path):

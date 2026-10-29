@@ -61,6 +61,11 @@ def _query(question: dict[str, Any]) -> str:
     return "".join(chr(value) for value in question.get("query_codepoints", []))
 
 
+def _unlink_if_file(path: Path) -> None:
+    if path.is_file():
+        path.unlink()
+
+
 def _remove_evaluation_artifacts(destination: Path) -> None:
     eval_dir = destination / "evals"
     for relative in (
@@ -68,12 +73,18 @@ def _remove_evaluation_artifacts(destination: Path) -> None:
         "datasets/ground_truth_multirepo.json",
         "datasets/retrieval_50.json",
     ):
-        candidate = eval_dir / relative
-        if candidate.is_file():
-            candidate.unlink()
-    audit_report = destination / "docs" / "evaluation_audit.md"
-    if audit_report.is_file():
-        audit_report.unlink()
+        _unlink_if_file(eval_dir / relative)
+    shutil.rmtree(eval_dir / "corpora", ignore_errors=True)
+    _unlink_if_file(destination / "docs" / "evaluation_audit.md")
+    for relative in (
+        "retrieval_benchmark_results.json",
+        "repository_benchmark_results.json",
+        "provider-evaluation.json",
+        "coverage.xml",
+        "multirepo_ground_truth_results.json",
+        "multi_repository_benchmark_matrix.json",
+    ):
+        _unlink_if_file(destination / relative)
 
 
 def _clean_root(root: Path, destination: Path) -> None:
