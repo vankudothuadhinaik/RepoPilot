@@ -209,10 +209,6 @@ def evaluate(root: Path) -> dict[str, Any]:
 
             client = TestClient(app)
             headers = {"Authorization": "Bearer provider-evaluation-local-token"}
-            registration = client.post(
-                "/api/repos", json={"path": str(corpus_root)}, headers=headers
-            )
-            registration.raise_for_status()
             repo_ids: dict[str, str] = {}
             for revision, corpus_root in corpus_roots.items():
                 registration = client.post(
