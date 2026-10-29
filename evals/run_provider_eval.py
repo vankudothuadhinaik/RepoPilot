@@ -74,20 +74,30 @@ def _normalize_text(value: str) -> str:
     return re.sub(r"\\s+", " ", value).strip()
 
 
+def _cited_source_lines(answer: str, evidence: list[dict[str, Any]]) -> list[str]:
+    cited_paths = set(citation_paths(answer))
+    return [
+        content
+        for item in evidence
+        if item.get("path") in cited_paths
+        for content in _snippet_source_lines(str(item.get("snippet", "")))
+    ]
+
+
+def _snippet_source_lines(snippet: str) -> list[str]:
+    source_lines = []
+    for line in snippet.splitlines():
+        _, separator, content = line.partition(": ")
+        if separator:
+            source_lines.append(content)
+    return source_lines
+
+
 def _quoted_answer_is_supported(answer: str, evidence: list[dict[str, Any]]) -> bool:
     quotes = re.findall(r'"([^"]+)"', answer)
-    cited_paths = set(citation_paths(answer))
-    if not quotes or not cited_paths:
+    if not quotes or not citation_paths(answer):
         return False
-    source_lines = []
-    for item in evidence:
-        if item.get("path") not in cited_paths:
-            continue
-        for line in str(item.get("snippet", "")).splitlines():
-            _, separator, content = line.partition(": ")
-            if separator:
-                source_lines.append(content)
-    source_text = _normalize_text("\\n".join(source_lines))
+    source_text = _normalize_text("\\n".join(_cited_source_lines(answer, evidence)))
     return all(_normalize_text(quote) in source_text for quote in quotes)
 
 
