@@ -28,5 +28,11 @@ def store(tmp_path):
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
+    monkeypatch.setenv("REP_PILOT_API_TOKEN", "test-api-token")
     api.store = Store(tmp_path / "api.sqlite3")
     return TestClient(api.app)
+
+
+@pytest.fixture
+def auth_headers():
+    return {"Authorization": "Bearer test-api-token"}

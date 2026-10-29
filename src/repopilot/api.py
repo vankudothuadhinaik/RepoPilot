@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import hmac
 import json
+import os
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from repopilot.indexer import index_repository
@@ -16,6 +19,26 @@ app = FastAPI(
     description="Local-first, evidence-grounded repository intelligence API.",
 )
 store = Store()
+
+
+def _api_token() -> str | None:
+    token = os.getenv("REP_PILOT_API_TOKEN")
+    return token if token else None
+
+
+@app.middleware("http")
+async def require_api_token(request: Request, call_next: Any) -> Any:
+    if request.url.path == "/api" or request.url.path.startswith("/api/"):
+        configured = _api_token()
+        authorization = request.headers.get("authorization", "")
+        scheme, _, supplied = authorization.partition(" ")
+        if not configured or scheme.lower() != "bearer" or not supplied or not hmac.compare_digest(supplied, configured):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid or missing bearer token"},
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    return await call_next(request)
 
 
 class RegisterRepository(BaseModel):
@@ -120,7 +143,6 @@ def ask_repository(repo_id: str, payload: AskRequest) -> dict[str, Any]:
         file_data = store.get_file(repo_id, item["path"])
         if not file_data:
             continue
-        lines = file_data["content"].splitlines()
         snippet = item.get("snippet", "")
         evidence.append({
             "path": item["path"], "language": item["language"],

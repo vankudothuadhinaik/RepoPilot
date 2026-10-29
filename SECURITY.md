@@ -14,7 +14,7 @@ Do not publish exploit details in a public issue. Contact the repository owner p
 - Common secret files, generated folders, binaries, symlinks, and oversized files are excluded by default.
 - Repository text is treated as data, not trusted instructions.
 - This MVP does not execute shell commands or apply code patches.
-- The API has no authentication. Bind it to loopback for local use; do not expose it to the public internet without authentication, authorization, rate limits, and a reviewed deployment design.
+- The `/api/*` routes require a bearer token supplied through `REP_PILOT_API_TOKEN`; `/health/live` and `/health/ready` remain public for local monitoring. Bind the service to loopback and do not expose it to the public internet without authorization, rate limits, and a reviewed deployment design.
 
 ## Limitations
 

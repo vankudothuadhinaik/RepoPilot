@@ -1,3 +1,5 @@
+import pytest
+
 from repopilot.indexer import index_repository, parse_python
 
 
@@ -15,8 +17,5 @@ def test_parse_syntax_error_returns_empty():
 
 
 def test_refuses_arbitrary_non_project_directory(tmp_path):
-    import pytest
-    from repopilot.indexer import index_repository
-
     with pytest.raises(ValueError):
         index_repository(tmp_path)

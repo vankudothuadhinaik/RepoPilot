@@ -1,134 +1,231 @@
 # RepoPilot
 
-**Evidence-grounded repository intelligence for developers.** Index a local codebase, search its source, discover Python symbols and imports, and preserve engineering notes—with file evidence rather than unsupported claims.
+RepoPilot is a local-first repository intelligence tool. It indexes a codebase, searches its source with SQLite FTS5, discovers Python symbols and imports, and stores engineering notes with file evidence.
 
-> Status: early MVP starter. This repository is prepared for GitHub connection, but has not yet been run in your environment. See the feature boundaries below; do not treat planned capabilities as implemented.
+It is designed for developers investigating an unfamiliar repository without granting an automated agent permission to execute commands or apply patches.
 
-## Why RepoPilot?
+## Features
 
-RepoPilot aims to help developers understand unfamiliar repositories, find relevant code, inspect dependencies, remember engineering decisions, and investigate bugs. Its first release prioritizes a safe, testable local core over autonomous code editing.
+- Register and re-index local repositories.
+- Exclude common secret-bearing paths, generated directories, binaries, symlinks, and files larger than 1 MB.
+- Extract Python classes and functions with the standard-library AST parser.
+- Extract static Python import relationships.
+- Search indexed text with SQLite FTS5.
+- Retrieve file evidence, snippets, symbols, import graphs, repository metadata, and engineering memories.
+- Provide an optional MCP server for repository listing, search, symbol lookup, overviews, and memory retrieval.
+- Offer a small React dashboard with a local API-token field.
+- Run as a hardened, loopback-only Docker Compose service.
 
-## Implemented in this starter
+## Current status and limitations
 
-- Local repository registration and re-indexing.
-- File filtering, common secret-file exclusions, symlink skipping, and file-size limits.
-- Python function/class discovery using the standard-library AST parser.
-- Python import relationship extraction.
-- SQLite metadata and FTS5 full-text search.
-- Search, symbols, graph, file evidence, and memory CRUD API endpoints.
-- Evidence retrieval endpoint that explicitly does **not** pretend to generate a semantic LLM answer.
-- Optional MCP tools for repository listing, code search, symbol lookup, overview, and memory retrieval.
-- Unit/API/security regression tests, GitHub Actions CI, CodeQL workflow, Dependabot, Docker, and Compose.
-- Architecture, threat model, API, MCP, evaluation, and troubleshooting docs.
+This is an early MVP. Implemented behavior is covered by the test suite, but it is not a production-hosted service.
 
-## Not implemented yet
+Not implemented:
 
-- Semantic embeddings or reranking.
-- LLM-generated explanations and provider adapters.
-- Complete Java/C++/TypeScript symbol and call-graph analysis.
-- Incremental per-file re-indexing (the current implementation replaces one repository's index).
-- Background indexing jobs.
-- Web UI beyond the starter directory.
-- Authentication, multi-user tenancy, cloud repository import, approved patch application, and isolated command execution.
-- A meaningful 50+ question benchmark or production security certification.
+- Semantic embeddings, reranking, or LLM-generated explanations.
+- Complete symbol/call-graph analysis for languages other than Python.
+- Incremental per-file indexing or background indexing jobs.
+- Multi-user tenancy, cloud repository import, patch application, or shell-command execution.
+- Rate limiting, a production identity system, or a large retrieval benchmark.
 
-These are explicit follow-up milestones, not completed claims.
+The `/api/*` routes require a bearer token. `/health/live` and `/health/ready` are intentionally public for local monitoring.
 
-## Requirements
+## Architecture
 
-- Python 3.11 or 3.12
-- Git optional for branch/commit metadata
-- SQLite with FTS5 (included in most standard Python distributions)
+RepoPilot is a local modular monolith:
 
-## Quick start
+1. The CLI and FastAPI application call the repository indexer.
+2. Safe file discovery filters untrusted repository content before reading it.
+3. Python AST and import extraction produce searchable records.
+4. SQLite and FTS5 store repository metadata, text, symbols, graph edges, and memories.
+5. The API, dashboard, and optional MCP server read from that local store.
+
+The Docker image listens on container port `8000`. Compose publishes it only on host loopback port `8010`.
+
+See [`docs/architecture.md`](docs/architecture.md) for the component view.
+
+## Prerequisites
+
+- Python 3.11 or 3.12.
+- SQLite with FTS5, included in most standard Python distributions.
+- Git is optional and is used for branch/commit metadata when available.
+- Docker Desktop and Compose for the container deployment.
+- Doppler CLI for the supported authenticated Docker workflow.
+- Node.js and npm only when running the dashboard.
+
+The repository is configured for Doppler project `repopilot`, config `dev`. Confirm the local selection with:
 
 ```bash
-python -m venv .venv
-# macOS/Linux
+doppler configure get project config
+```
+
+Do not print, commit, or place `REP_PILOT_API_TOKEN` in a tracked file or a secret-bearing `.env` file.
+
+## Local Python development
+
+Create an environment and install the project with development tools.
+
+macOS/Linux:
+
+```bash
+python3 -m venv .venv
 source .venv/bin/activate
-# Windows PowerShell
-# .venv\Scripts\Activate.ps1
-
 python -m pip install --upgrade pip
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 ```
 
-Index a repository:
+Windows PowerShell:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
+
+The CLI uses `.repopilot/repopilot.sqlite3` by default. Set `REP_PILOT_DATA_DIR` to use another data directory.
+
+Index and inspect a repository:
 
 ```bash
-repopilot index /absolute/path/to/your/project
+repopilot index /absolute/path/to/project
 repopilot repos
-repopilot serve
 ```
 
-Open `http://127.0.0.1:8000/docs`, register a repository with `POST /api/repos`, and use the returned repository ID to search or list symbols. The database defaults to `.repopilot/repopilot.sqlite3`; set `REP_PILOT_DATA_DIR` to change it.
-
-### API example
+Run the local API on its default loopback URL. Because `/api/*` is authenticated, start it through the configured Doppler context:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/repos \
+doppler run -- repopilot serve --host 127.0.0.1 --port 8000
+```
+
+The local API is then available at `http://127.0.0.1:8000`; this is different from the Docker host URL below.
+
+## Docker Compose deployment
+
+The supported deployment keeps the container on port `8000` and publishes it as `127.0.0.1:8010`. Doppler supplies the token to Compose, and Compose refuses to render or start the service if `REP_PILOT_API_TOKEN` is unset or empty.
+
+Run from the repository root:
+
+```bash
+doppler configure get project config
+doppler run -- docker compose up --build -d
+doppler run -- docker compose ps
+doppler run -- docker compose logs --no-color --tail=50 repopilot
+```
+
+Public health checks:
+
+```bash
+curl http://127.0.0.1:8010/health/live
+curl http://127.0.0.1:8010/health/ready
+```
+
+Open the API documentation at [http://127.0.0.1:8010/docs](http://127.0.0.1:8010/docs). The service binds to loopback, drops all Linux capabilities, enables `no-new-privileges`, uses a read-only root filesystem with `/tmp` as tmpfs, runs as a non-root user, and persists its SQLite database in the `repopilot_data` named volume.
+
+If host port `8010` is occupied, change only the host side of the mapping, for example `127.0.0.1:8011:8000`, and update the dashboard proxy and URLs together. Do not stop unrelated containers or expose this unauthenticated-to-the-network service publicly.
+
+## Authentication and safe token handling
+
+`REP_PILOT_API_TOKEN` is required for every `/api/*` route. Missing, malformed, or incorrect bearer credentials return `401`. The health endpoints remain public so local monitoring can determine whether the process and storage are available.
+
+Use the token in memory; do not echo it or put it in source control.
+
+macOS/Linux:
+
+```bash
+API_TOKEN="$(doppler secrets get REP_PILOT_API_TOKEN --plain)"
+curl -H "Authorization: Bearer $API_TOKEN" http://127.0.0.1:8010/api/repos
+unset API_TOKEN
+```
+
+Windows PowerShell:
+
+```powershell
+$apiToken = doppler secrets get REP_PILOT_API_TOKEN --plain
+Invoke-RestMethod -Uri http://127.0.0.1:8010/api/repos -Headers @{ Authorization = "Bearer $apiToken" }
+Remove-Variable apiToken
+```
+
+Do not use `docker compose config` without the Doppler environment because the required interpolation will fail. Avoid commands or shell tracing that could print environment values.
+
+## Dashboard
+
+The dashboard is a development frontend; Compose does not serve it. Its Vite proxy points to `http://127.0.0.1:8010`, and the UI sends the token entered in its password field with API requests.
+
+Install and run it from `apps/web`:
+
+```bash
+npm install
+npm run dev
+```
+
+Open the URL printed by Vite, enter the value of `REP_PILOT_API_TOKEN` from Doppler into the **Local API token** field, and use the dashboard. The token is held by the browser page for requests and is not hard-coded into the frontend.
+
+## API usage
+
+The Docker API base URL is `http://127.0.0.1:8010`; use port `8000` for a local `repopilot serve` process. Health endpoints do not require authentication. All `/api/*` examples require the bearer header:
+
+```bash
+API_TOKEN="$(doppler secrets get REP_PILOT_API_TOKEN --plain)"
+
+curl -H "Authorization: Bearer $API_TOKEN" \
+  http://127.0.0.1:8010/api/repos
+
+curl -X POST http://127.0.0.1:8010/api/repos \
+  -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"path":"/absolute/path/to/your/project"}'
-```
+  -d '{"path":"/absolute/path/to/project"}'
 
-Then:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/repos/REPOSITORY_ID/search \
+curl -X POST http://127.0.0.1:8010/api/repos/REPOSITORY_ID/search \
+  -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"question":"authentication","limit":8}'
+
+unset API_TOKEN
 ```
 
-## Tests and checks
+Available route groups include repository registration and metadata, indexing, search, evidence retrieval, symbols, import graphs, files, and memory CRUD. See [`docs/api.md`](docs/api.md) and the interactive `/docs` page for the complete list.
+
+## Tests, checks, and CI
+
+Run the local Python checks:
 
 ```bash
-ruff check .
-pytest
+python -m pytest
+python -m ruff check .
+python -m mypy src
 python -m compileall -q src
 python evals/run_eval.py
 ```
 
-The smoke evaluation is only a wiring check; it is not a benchmark accuracy result. CI runs lint, tests, and compilation on Python 3.11 and 3.12.
-
-## Docker
+Run the frontend check:
 
 ```bash
-docker compose up --build
+cd apps/web
+npm install
+npm run build
 ```
 
-The Compose service binds to loopback, drops Linux capabilities, uses a read-only root filesystem, and persists its database in a named volume. Do not expose the unauthenticated API to the public internet.
+The smoke evaluation is a deterministic wiring check, not an accuracy benchmark. GitHub Actions runs Ruff, pytest, and Python compilation on Python 3.11 and 3.12. CodeQL scans Python, and Dependabot monitors pip and GitHub Actions dependencies.
 
-## Optional MCP
+## Security model
 
-```bash
-pip install -e ".[mcp]"
-python -m repopilot.mcp_server
-```
+Repository content is untrusted input. RepoPilot skips common secret paths, symlinks, generated directories, binaries, and oversized files; it does not claim to detect every credential. The application does not execute repository commands or apply patches.
 
-See [`docs/mcp-setup.md`](docs/mcp-setup.md).
+The API is intended for local loopback use. Bearer authentication protects `/api/*`, but this is not a full identity, tenancy, rate-limiting, or production authorization system. Review [`SECURITY.md`](SECURITY.md) and [`docs/threat-model.md`](docs/threat-model.md) before handling sensitive repositories.
 
-## Security and privacy
+## Documentation and contribution
 
-Read [`SECURITY.md`](SECURITY.md) and [`docs/threat-model.md`](docs/threat-model.md). Repository content is untrusted input. This MVP does not execute shell commands or apply patches. The API has no authentication; use loopback only. Common secret-bearing paths are excluded, but users must review exclusions before indexing sensitive repositories.
+- [`docs/architecture.md`](docs/architecture.md) — components and boundaries.
+- [`docs/api.md`](docs/api.md) — route reference.
+- [`docs/mcp-setup.md`](docs/mcp-setup.md) — optional MCP server.
+- [`docs/evaluation.md`](docs/evaluation.md) — evaluation scope and limitations.
+- [`docs/troubleshooting.md`](docs/troubleshooting.md) — deployment and runtime troubleshooting.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution workflow.
+- [`SECURITY.md`](SECURITY.md) — security policy.
 
-## Architecture
-
-See [`docs/architecture.md`](docs/architecture.md), [`docs/api.md`](docs/api.md), and [`docs/evaluation.md`](docs/evaluation.md).
-
-## Roadmap
-
-1. Add robust file-level incremental indexing and job status.
-2. Add language parsers and tested symbol/call relationships.
-3. Add hybrid retrieval and an optional provider interface with evidence validation.
-4. Add a polished UI, session handling, and explainable investigation workflow.
-5. Add an evaluated memory-freshness model.
-6. Harden authentication, tenancy, and isolated approved actions only if hosted execution is required.
-7. Publish a reviewed benchmark and release notes.
-
-## Contributing
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). Never commit `.env` files, API keys, private repository source, or local index databases.
+Add tests for behavior changes, run the relevant checks, and never commit credentials, private repository content, production data, `.env` files, or local `.repopilot/` databases.
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+RepoPilot is released under the MIT License. See [`LICENSE`](LICENSE).

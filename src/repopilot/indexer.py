@@ -6,7 +6,12 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from repopilot.security import _gitignore_patterns, read_safe_text, safe_repository_root, should_ignore
+from repopilot.security import (
+    _gitignore_patterns,
+    read_safe_text,
+    safe_repository_root,
+    should_ignore,
+)
 
 
 def git_value(root: Path, *args: str) -> str | None:
