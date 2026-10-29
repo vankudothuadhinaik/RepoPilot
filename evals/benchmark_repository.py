@@ -55,6 +55,7 @@ def run(root: Path) -> dict[str, Any]:
             "schema_version": 1,
             "repository": root.name,
             "root": str(root),
+            "commit": second.get("commit"),
             "parser_version": PARSER_VERSION,
             "file_count": len(second["files"]),
             "file_bytes_indexed": file_bytes,
