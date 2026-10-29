@@ -21,7 +21,7 @@ flowchart TD
 - React/Vite dashboard for local repository registration, full-text search, and evidence retrieval.
 - `/ask` evidence citations include a source path, line range, content hash, and indexed commit.
 - SQLite persistence, FTS5 full-text search, symbol records, import edges, memory CRUD.
-- Python AST symbol extraction and Python import extraction.
+- Python AST symbol extraction with lexical qualified names/signatures and Python import extraction.
 - Indexes are replaced atomically at the database transaction level when re-indexing.
 - Local API and MCP tool access are read-only with respect to source files.
 
