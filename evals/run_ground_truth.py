@@ -44,14 +44,15 @@ def evaluate(root: Path) -> dict[str, Any]:
             corpus_root,
             ignore=shutil.ignore_patterns(
                 ".git", "__pycache__", ".venv", "node_modules",
-                ".pytest_cache", ".mypy_cache", "dist", "build",
+                ".pytest_cache", ".mypy_cache", "dist", "build", "corpora",
                 "retrieval_benchmark_results.json", "repository_benchmark_results.json",
                 "provider-evaluation.json", "coverage.xml",
             ),
         )
-        ground_truth_file = corpus_root / "evals" / "datasets" / "ground_truth.json"
-        if ground_truth_file.is_file():
-            ground_truth_file.unlink()
+        for dataset_name in ("ground_truth.json", "ground_truth_multirepo.json", "retrieval_50.json"):
+            dataset_file = corpus_root / "evals" / "datasets" / dataset_name
+            if dataset_file.is_file():
+                dataset_file.unlink()
 
         from fastapi.testclient import TestClient
 
