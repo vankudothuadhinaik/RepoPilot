@@ -8,7 +8,7 @@ python evals/run_eval.py
 
 The run combines:
 - A three-case wiring smoke test.
-- A 50-case synthetic retrieval benchmark spanning three fixture repositories and 15 hand-authored source files: 45 positive path-retrieval queries and five negative/abstention queries.
+- A 51-case synthetic retrieval benchmark spanning three fixture repositories and 17 hand-authored source files: 46 positive path-retrieval queries and five negative/abstention queries.
 
 The benchmark reports Recall@5, Recall@10, MRR@10, and abstention accuracy, plus per-query expected path and rank. CI uploads the full JSON report as a commit-specific artifact named `repopilot-retrieval-benchmark-py<version>-<sha>` for each Python matrix version for 30 days.
 
@@ -53,3 +53,9 @@ This expands the repeatable measurement workflow but does not itself supply an i
 ## Optional live provider evaluation
 
 See [live provider evaluation](live-provider-evaluation.md) for the opt-in provider-backed run, report fields, secret handling, and interpretation limits. This evaluation is intentionally not required for ordinary CI because it requires a paid/external provider and repository source may be sent to that provider. Offline tests remain the deterministic baseline.
+
+## Identifier-aware lexical ranking
+
+The synthetic suite includes an identifier regression for `auth_token`: FTS tokenization splits identifier punctuation into searchable terms, and a bounded exact path-token boost ranks the matching implementation file above generic documentation with the same terms. The SQLite FTS path and the fallback search path use the same query-token and path-ranking policy. Punctuation-only queries return no results instead of matching every file.
+
+This remains lexical ranking, not semantic retrieval. Review the per-query ranks in the benchmark artifact rather than treating a passing threshold as proof of broad real-world performance. The small reviewed source-ground-truth set independently checks source ranges and citation line content; it is deliberately offline and does not spend provider credits. Provider behavior belongs to the opt-in live-provider evaluation.
