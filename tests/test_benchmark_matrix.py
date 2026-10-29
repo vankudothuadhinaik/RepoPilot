@@ -1,4 +1,6 @@
-import argparse\n\nimport pytest
+import argparse
+
+import pytest
 
 from evals import benchmark_matrix
 
@@ -17,13 +19,16 @@ def test_run_matrix_records_commit_and_redacts_root(monkeypatch, tmp_path):
         },
     )
 
-    report = benchmark_matrix.run_matrix(\n        [root], redact_paths=True, source_revisions={"private-project": "abc123"}\n    )
+    report = benchmark_matrix.run_matrix(
+        [root], redact_paths=True, source_revisions={"private-project": "abc123"}
+    )
 
     assert report["schema_version"] == 2
     assert report["repository_count"] == 1
     assert report["path_redaction"] == "enabled"
     assert report["reports"][0]["root"] == "<redacted>"
-    assert report["reports"][0]["commit"] == "abc123"\n    assert report["reports"][0]["source_commit"] == "abc123"
+    assert report["reports"][0]["commit"] == "abc123"
+    assert report["reports"][0]["source_commit"] == "abc123"
     assert str(root) not in str(report)
 
 
