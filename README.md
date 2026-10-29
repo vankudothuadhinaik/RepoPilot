@@ -125,7 +125,7 @@ Do not run shell tracing or commands that print environment values. Compose vali
 The dashboard is a development frontend; Compose does not serve it. Its Vite proxy targets `http://127.0.0.1:8010`. From `apps/web`:
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -172,7 +172,8 @@ Frontend check:
 
 ```bash
 cd apps/web
-npm install
+npm ci
+npm audit --audit-level=moderate
 npm run build
 ```
 
