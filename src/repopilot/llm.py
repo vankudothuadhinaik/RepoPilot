@@ -5,8 +5,8 @@ import logging
 import os
 import re
 from typing import Any
-from urllib.parse import urlsplit
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 _CITATION = re.compile(r"\[\[([^\]]+)\]\]")
