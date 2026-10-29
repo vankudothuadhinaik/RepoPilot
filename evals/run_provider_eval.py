@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -98,6 +99,21 @@ def score_case(question: dict[str, Any], response: dict[str, Any], root: Path) -
         "provider_answer_generated": response.get("mode") == "llm",
     }
 
+def _prepare_provider_corpus(root: Path, destination: Path) -> Path:
+    """Copy only source files into the provider corpus; exclude evaluation labels and fixtures."""
+    shutil.copytree(
+        root,
+        destination,
+        ignore=shutil.ignore_patterns(
+            ".git", "__pycache__", ".venv", "node_modules", ".pytest_cache",
+            ".mypy_cache", "dist", "build", "datasets", "corpora",
+            "retrieval_benchmark_results.json", "repository_benchmark_results.json",
+            "provider-evaluation.json", "coverage.xml",
+        ),
+    )
+    return destination
+
+
 def evaluate(root: Path) -> dict[str, Any]:
     """Run the reviewed question set through the real API with a configured provider."""
     if not os.getenv("OPENAI_API_KEY", "").strip():
@@ -105,15 +121,21 @@ def evaluate(root: Path) -> dict[str, Any]:
     root = root.resolve()
     dataset_path = Path(__file__).parent / "datasets" / "ground_truth.json"
     questions = json.loads(dataset_path.read_text(encoding="utf-8"))["questions"]
+    previous_token = os.environ.get("REP_PILOT_API_TOKEN")
+    previous_data_dir = os.environ.get("REP_PILOT_DATA_DIR")
     with tempfile.TemporaryDirectory(prefix="repopilot-provider-eval-") as data_dir:
         os.environ["REP_PILOT_API_TOKEN"] = "provider-evaluation-local-token"
         os.environ["REP_PILOT_DATA_DIR"] = data_dir
+        corpus_root = _prepare_provider_corpus(root, Path(data_dir) / "source-corpus")
         from fastapi.testclient import TestClient
 
         from repopilot.api import app
+
         client = TestClient(app)
         headers = {"Authorization": "Bearer provider-evaluation-local-token"}
-        registration = client.post("/api/repos", json={"path": str(root)}, headers=headers)
+        registration = client.post(
+            "/api/repos", json={"path": str(corpus_root)}, headers=headers
+        )
         registration.raise_for_status()
         repo_id = registration.json()["id"]
         results, durations = [], []
@@ -157,7 +179,7 @@ def evaluate(root: Path) -> dict[str, Any]:
                     scored["evaluation_error"] = "malformed_api_response"
                     results.append(scored)
                     continue
-                scored = score_case(question, payload, root)
+                scored = score_case(question, payload, corpus_root)
                 if diagnostic.codes:
                     scored["provider_error"] = diagnostic.codes[-1]
                 results.append(scored)
@@ -254,6 +276,15 @@ def evaluate(root: Path) -> dict[str, Any]:
                 "Latency includes local indexing/API overhead as well as provider latency."
             ]
         }
+    # Restore caller environment even if a provider request fails.
+    if previous_token is None:
+        os.environ.pop("REP_PILOT_API_TOKEN", None)
+    else:
+        os.environ["REP_PILOT_API_TOKEN"] = previous_token
+    if previous_data_dir is None:
+        os.environ.pop("REP_PILOT_DATA_DIR", None)
+    else:
+        os.environ["REP_PILOT_DATA_DIR"] = previous_data_dir
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
