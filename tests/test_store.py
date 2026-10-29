@@ -214,7 +214,7 @@ def test_symbol_search_matches_qualified_name_signature_kind_and_path(fixture_re
     assert any(item["name"] == "BillingService" for item in by_kind)
 
     by_path = store.symbols(repo_id, "src/services.py")
-    assert len(by_path) == 3
+    assert len(by_path) == 4
 
 
 def test_concurrent_same_snapshot_indexing_preserves_sqlite_integrity(fixture_repo, store):
