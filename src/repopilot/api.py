@@ -66,10 +66,10 @@ def list_repositories() -> list[dict[str, Any]]:
 @app.post("/api/repos", status_code=201)
 def register_repository(payload: RegisterRepository) -> dict[str, Any]:
     try:
-        indexed = index_repository(payload.path)
+        indexed = index_repository(payload.path, store.file_hashes(payload.path))
         repo = store.index(indexed)
         repo["errors"] = json.loads(repo.pop("errors_json", "[]"))
-        repo["coverage"] = indexed["coverage"]
+        repo["coverage"] = {**indexed["coverage"], "symbols_found": repo["symbol_count"]}
         return repo
     except (ValueError, OSError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -93,7 +93,9 @@ def repository_detail(repo_id: str) -> dict[str, Any]:
 def reindex_repository(repo_id: str) -> dict[str, Any]:
     repo = require_repo(repo_id)
     try:
-        result = store.index(index_repository(repo["root_path"]))
+        indexed = index_repository(repo["root_path"], store.file_hashes(repo["root_path"]))
+        result = store.index(indexed)
+        result["coverage"] = {**indexed["coverage"], "symbols_found": result["symbol_count"]}
         result["errors"] = json.loads(result.pop("errors_json", "[]"))
         return result
     except (ValueError, OSError) as exc:
