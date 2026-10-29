@@ -6,7 +6,6 @@ import re
 from typing import Any
 from urllib.request import Request, urlopen
 
-
 _CITATION = re.compile(r"\[\[([^\]]+)\]\]")
 
 
