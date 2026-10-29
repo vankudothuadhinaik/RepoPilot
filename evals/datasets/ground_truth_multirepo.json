@@ -1,0 +1,475 @@
+{
+  "title": "RepoPilot multi-repository source-grounded evaluation",
+  "version": 1,
+  "description": "Maintainer-curated retrieval/evidence cases over four pinned source snapshots. Positive expected line anchors are checked against the included snapshot at evaluation time. Automated checks do not establish independent human review or semantic entailment.",
+  "authoring": {
+    "status": "maintainer_authored",
+    "independent_review_status": "pending",
+    "review_requirement": "A second reviewer should verify each query, expected path, and expected line against the pinned source snapshots before external benchmark claims.",
+    "created_at": "2026-10-29"
+  },
+  "repositories": [
+    {
+      "id": "RepoPilot",
+      "upstream": "https://github.com/vankudothuadhinaik/RepoPilot",
+      "commit": "52e2e6b212405087fc79fd46ec3bb0edee5dc952",
+      "snapshot": "checked-out root supplied with --root"
+    },
+    {
+      "id": "datapulse",
+      "upstream": "https://github.com/vankudothuadhinaik/DataPulse-Analytics",
+      "commit": "d2e80f7e737823bd349de76b421cdbf7d3a352d1",
+      "snapshot": "evals/corpora/datapulse"
+    },
+    {
+      "id": "healthstream",
+      "upstream": "https://github.com/vankudothuadhinaik/HealthStream-ETL",
+      "commit": "c276139ca273be09c6f177b4a25b420766cade16",
+      "snapshot": "evals/corpora/healthstream"
+    },
+    {
+      "id": "matching-engine",
+      "upstream": "https://github.com/vankudothuadhinaik/low-latency-matching-engine",
+      "commit": "fdda1c07e75f7ab87b33a74a60a5eb04e99ac7b1",
+      "snapshot": "evals/corpora/matching-engine"
+    }
+  ],
+  "questions": [
+    {
+      "id": "ground-truth-001",
+      "query": "bearer token middleware",
+      "expected_path": "src/repopilot/api.py",
+      "expected_symbol": "require_api_token",
+      "expected_start_line": 26,
+      "expected_end_line": 38,
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "ground-truth-002",
+      "query": "known_hashes digest",
+      "expected_path": "src/repopilot/indexer.py",
+      "expected_symbol": "index_repository",
+      "expected_start_line": 187,
+      "expected_end_line": 257,
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "ground-truth-003",
+      "query": "path_prefix clauses",
+      "expected_path": "src/repopilot/store.py",
+      "expected_symbol": "search",
+      "expected_start_line": 282,
+      "expected_end_line": 331,
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "ground-truth-005",
+      "query": "provider URL hostname port malformed",
+      "expected_path": "src/repopilot/llm.py",
+      "expected_symbol": "_provider_url",
+      "expected_start_line": 19,
+      "expected_end_line": 38,
+      "category": "provider_configuration",
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "ground-truth-006",
+      "query": "safe_repository_root",
+      "expected_path": "src/repopilot/security.py",
+      "expected_symbol": "safe_repository_root",
+      "expected_start_line": 130,
+      "expected_end_line": 138,
+      "category": "filesystem_safety",
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "ground-truth-007",
+      "query": "read_safe_text open file descriptor nofollow",
+      "expected_path": "src/repopilot/security.py",
+      "expected_symbol": "read_safe_text",
+      "expected_start_line": 243,
+      "expected_end_line": 335,
+      "category": "filesystem_safety",
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "ground-truth-008",
+      "query": "parse Python qualified names readable signatures",
+      "expected_path": "src/repopilot/indexer.py",
+      "expected_symbol": "parse_python",
+      "expected_start_line": 43,
+      "expected_end_line": 102,
+      "category": "symbol_indexing",
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "ground-truth-009",
+      "query": "extract imports language module",
+      "expected_path": "src/repopilot/indexer.py",
+      "expected_symbol": "extract_imports",
+      "expected_start_line": 105,
+      "expected_end_line": 184,
+      "category": "import_indexing",
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "ground-truth-010",
+      "query": "_fallback_search snippet 500",
+      "expected_path": "src/repopilot/store.py",
+      "expected_symbol": "_fallback_search",
+      "expected_start_line": 333,
+      "expected_end_line": 360,
+      "category": "fallback_retrieval",
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "ground-truth-011",
+      "query": "create_memory kind summary evidence",
+      "expected_path": "src/repopilot/store.py",
+      "expected_symbol": "create_memory",
+      "expected_start_line": 404,
+      "expected_end_line": 421,
+      "category": "memory_persistence",
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "ground-truth-012",
+      "query": "grounded answer citation provider response",
+      "expected_path": "src/repopilot/llm.py",
+      "expected_symbol": "generate_grounded_answer",
+      "expected_start_line": 41,
+      "expected_end_line": 168,
+      "category": "grounded_answer_validation",
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "ground-truth-013",
+      "query": "ask repository query matched evidence abstained",
+      "expected_path": "src/repopilot/api.py",
+      "expected_symbol": "ask_repository",
+      "expected_start_line": 141,
+      "expected_end_line": 231,
+      "category": "evidence_selection",
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "ground-truth-014",
+      "query": "delete_repository file_search repositories",
+      "expected_path": "src/repopilot/store.py",
+      "expected_symbol": "delete_repository",
+      "expected_start_line": 459,
+      "expected_end_line": 466,
+      "category": "repository_lifecycle",
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "ground-truth-015",
+      "query_codepoints": [
+        113,
+        117,
+        117,
+        120,
+        32,
+        122,
+        120,
+        113,
+        118,
+        112,
+        108
+      ],
+      "expected_path": null,
+      "expected_symbol": null,
+      "expected_start_line": null,
+      "expected_end_line": null,
+      "category": "unsupported_query",
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "ground-truth-016",
+      "query_codepoints": [
+        102,
+        108,
+        97,
+        114,
+        110,
+        32,
+        122,
+        121,
+        98,
+        98,
+        101,
+        114,
+        119,
+        111,
+        99,
+        107
+      ],
+      "expected_path": null,
+      "expected_symbol": null,
+      "expected_start_line": null,
+      "expected_end_line": null,
+      "category": "unsupported_query",
+      "repository": "RepoPilot"
+    },
+    {
+      "id": "multirepo-positive-001",
+      "repository": "datapulse",
+      "query": "API key constant-time comparison configured authentication",
+      "expected_path": "backend/app/main.py",
+      "expected_start_line": 33,
+      "expected_end_line": 33,
+      "category": "authentication",
+      "expected_fact": "API key authentication uses constant-time comparison"
+    },
+    {
+      "id": "multirepo-positive-002",
+      "repository": "datapulse",
+      "query": "readiness database readiness select one query",
+      "expected_path": "backend/app/main.py",
+      "expected_start_line": 67,
+      "expected_end_line": 67,
+      "category": "readiness",
+      "expected_fact": "Database readiness executes a lightweight query"
+    },
+    {
+      "id": "multirepo-positive-003",
+      "repository": "datapulse",
+      "query": "analytics revenue sum coalesce null safe",
+      "expected_path": "backend/app/main.py",
+      "expected_start_line": 91,
+      "expected_end_line": 91,
+      "category": "analytics",
+      "expected_fact": "Revenue metrics use a null-safe aggregate"
+    },
+    {
+      "id": "multirepo-positive-004",
+      "repository": "datapulse",
+      "query": "top events count group ordering event name",
+      "expected_path": "backend/app/main.py",
+      "expected_start_line": 100,
+      "expected_end_line": 100,
+      "category": "analytics",
+      "expected_fact": "Top event counts have deterministic tie ordering"
+    },
+    {
+      "id": "multirepo-positive-005",
+      "repository": "datapulse",
+      "query": "event schema rejects extra fields forbid",
+      "expected_path": "backend/app/schemas.py",
+      "expected_start_line": 25,
+      "expected_end_line": 25,
+      "category": "input_validation",
+      "expected_fact": "Event input forbids undeclared fields"
+    },
+    {
+      "id": "multirepo-positive-006",
+      "repository": "datapulse",
+      "query": "event model composite occurred time event name index",
+      "expected_path": "backend/app/models.py",
+      "expected_start_line": 11,
+      "expected_end_line": 11,
+      "category": "database_model",
+      "expected_fact": "Event model defines a composite time and event index"
+    },
+    {
+      "id": "multirepo-positive-007",
+      "repository": "healthstream",
+      "query": "ETL required input columns patient event amount",
+      "expected_path": "healthstream_etl.py",
+      "expected_start_line": 14,
+      "expected_end_line": 14,
+      "category": "input_validation",
+      "expected_fact": "ETL requires the declared input columns"
+    },
+    {
+      "id": "multirepo-positive-008",
+      "repository": "healthstream",
+      "query": "ETL event date canonical isoformat validation",
+      "expected_path": "healthstream_etl.py",
+      "expected_start_line": 42,
+      "expected_end_line": 42,
+      "category": "date_validation",
+      "expected_fact": "ETL rejects noncanonical ISO dates"
+    },
+    {
+      "id": "multirepo-positive-009",
+      "repository": "healthstream",
+      "query": "ETL amount finite nonnegative Decimal rejection",
+      "expected_path": "healthstream_etl.py",
+      "expected_start_line": 50,
+      "expected_end_line": 50,
+      "category": "amount_validation",
+      "expected_fact": "ETL rejects negative or nonfinite Decimal amounts"
+    },
+    {
+      "id": "multirepo-positive-010",
+      "repository": "healthstream",
+      "query": "ETL duplicate event id detection seen ids",
+      "expected_path": "healthstream_etl.py",
+      "expected_start_line": 104,
+      "expected_end_line": 104,
+      "category": "deduplication",
+      "expected_fact": "ETL detects duplicate event identifiers"
+    },
+    {
+      "id": "multirepo-positive-011",
+      "repository": "healthstream",
+      "query": "ETL duplicate CSV column names header validation",
+      "expected_path": "healthstream_etl.py",
+      "expected_start_line": 88,
+      "expected_end_line": 88,
+      "category": "input_validation",
+      "expected_fact": "ETL rejects duplicate CSV header names"
+    },
+    {
+      "id": "multirepo-positive-012",
+      "repository": "healthstream",
+      "query": "daily summary aggregate event date encounter type",
+      "expected_path": "healthstream_etl.py",
+      "expected_start_line": 121,
+      "expected_end_line": 121,
+      "category": "aggregation",
+      "expected_fact": "Daily summaries aggregate by date and encounter type"
+    },
+    {
+      "id": "multirepo-positive-013",
+      "repository": "matching-engine",
+      "query": "order book add order rejects invalid price zero quantity duplicate id",
+      "expected_path": "src/OrderBook.cpp",
+      "expected_start_line": 12,
+      "expected_end_line": 12,
+      "category": "order_validation",
+      "expected_fact": "Order insertion rejects invalid prices zero quantities and duplicate ids"
+    },
+    {
+      "id": "multirepo-positive-014",
+      "repository": "matching-engine",
+      "query": "matching engine buy crosses resting price comparison",
+      "expected_path": "src/OrderBook.cpp",
+      "expected_start_line": 36,
+      "expected_end_line": 36,
+      "category": "price_matching",
+      "expected_fact": "Buy orders cross when their limit reaches the resting ask"
+    },
+    {
+      "id": "multirepo-positive-015",
+      "repository": "matching-engine",
+      "query": "cancel order erase order release pool object",
+      "expected_path": "src/OrderBook.cpp",
+      "expected_start_line": 86,
+      "expected_end_line": 86,
+      "category": "order_lifecycle",
+      "expected_fact": "Cancellation removes order and returns its object to the pool"
+    },
+    {
+      "id": "multirepo-positive-016",
+      "repository": "matching-engine",
+      "query": "matching engine partial fill min remaining resting quantity",
+      "expected_path": "src/OrderBook.cpp",
+      "expected_start_line": 115,
+      "expected_end_line": 115,
+      "category": "trade_execution",
+      "expected_fact": "Matching executes the smaller remaining quantity"
+    },
+    {
+      "id": "multirepo-positive-017",
+      "repository": "matching-engine",
+      "query": "order book best bid empty sentinel minimum price",
+      "expected_path": "src/OrderBook.cpp",
+      "expected_start_line": 152,
+      "expected_end_line": 152,
+      "category": "order_book",
+      "expected_fact": "Empty bid books use a minimum-price sentinel"
+    },
+    {
+      "id": "multirepo-positive-018",
+      "repository": "matching-engine",
+      "query": "order pool grows storage when free list empty",
+      "expected_path": "src/OrderPool.cpp",
+      "expected_start_line": 22,
+      "expected_end_line": 22,
+      "category": "memory_pool",
+      "expected_fact": "Order pool allocates more storage when the free list is empty"
+    },
+    {
+      "id": "multirepo-negative-001",
+      "repository": "RepoPilot",
+      "query": "which constellation stores geothermal yogurt",
+      "expected_path": null,
+      "expected_symbol": null,
+      "expected_start_line": null,
+      "expected_end_line": null,
+      "category": "unsupported_query"
+    },
+    {
+      "id": "multirepo-negative-002",
+      "repository": "RepoPilot",
+      "query": "who won the fictional orbital chess championship",
+      "expected_path": null,
+      "expected_symbol": null,
+      "expected_start_line": null,
+      "expected_end_line": null,
+      "category": "unsupported_query"
+    },
+    {
+      "id": "multirepo-negative-003",
+      "repository": "datapulse",
+      "query": "quantum banana lighthouse checksum",
+      "expected_path": null,
+      "expected_symbol": null,
+      "expected_start_line": null,
+      "expected_end_line": null,
+      "category": "unsupported_query"
+    },
+    {
+      "id": "multirepo-negative-004",
+      "repository": "datapulse",
+      "query": "volcanic telescope knitting theorem",
+      "expected_path": null,
+      "expected_symbol": null,
+      "expected_start_line": null,
+      "expected_end_line": null,
+      "category": "unsupported_query"
+    },
+    {
+      "id": "multirepo-negative-005",
+      "repository": "healthstream",
+      "query": "platinum nebula accordion calculus",
+      "expected_path": null,
+      "expected_symbol": null,
+      "expected_start_line": null,
+      "expected_end_line": null,
+      "category": "unsupported_query"
+    },
+    {
+      "id": "multirepo-negative-006",
+      "repository": "healthstream",
+      "query": "submarine cinnamon aurora blueprint",
+      "expected_path": null,
+      "expected_symbol": null,
+      "expected_start_line": null,
+      "expected_end_line": null,
+      "category": "unsupported_query"
+    },
+    {
+      "id": "multirepo-negative-007",
+      "repository": "matching-engine",
+      "query": "orchid comet pastry telescope",
+      "expected_path": null,
+      "expected_symbol": null,
+      "expected_start_line": null,
+      "expected_end_line": null,
+      "category": "unsupported_query"
+    },
+    {
+      "id": "multirepo-negative-008",
+      "repository": "matching-engine",
+      "query": "lunar violin glacier embroidery",
+      "expected_path": null,
+      "expected_symbol": null,
+      "expected_start_line": null,
+      "expected_end_line": null,
+      "category": "unsupported_query"
+    }
+  ]
+}
