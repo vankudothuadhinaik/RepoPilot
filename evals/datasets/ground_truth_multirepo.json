@@ -12,7 +12,7 @@
     {
       "id": "RepoPilot",
       "upstream": "https://github.com/vankudothuadhinaik/RepoPilot",
-      "commit": "52e2e6b212405087fc79fd46ec3bb0edee5dc952",
+      "commit": "773b4de9ddc72f611763cb642c25ba2ea9e7b4dc",
       "snapshot": "checked-out root supplied with --root"
     },
     {
