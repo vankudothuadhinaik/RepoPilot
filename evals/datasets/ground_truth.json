@@ -73,7 +73,7 @@
     },
     {
       "id": "ground-truth-010",
-      "query": "_fallback_search rows",
+      "query": "_fallback_search snippet 500",
       "expected_path": "src/repopilot/store.py",
       "expected_symbol": "_fallback_search",
       "expected_start_line": 333,
