@@ -43,3 +43,32 @@ def test_llm_rejects_unknown_path_citations(monkeypatch):
         }),
     )
     assert generate_grounded_answer("Where is auth?", [{"path": "src/auth.py", "snippet": "auth"}]) is None
+
+
+
+def test_llm_rejects_invalid_base_url(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "file:///etc")
+    assert generate_grounded_answer("Where is auth?", [{"path": "src/auth.py", "snippet": "auth"}]) is None
+
+
+def test_llm_rejects_malformed_citation_tokens(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "repopilot.llm.urlopen",
+        lambda *args, **kwargs: FakeResponse({
+            "choices": [{"message": {"content": "Auth is here [[src/auth.py]."}}]
+        }),
+    )
+    assert generate_grounded_answer("Where is auth?", [{"path": "src/auth.py", "snippet": "auth"}]) is None
+
+
+def test_llm_rejects_oversized_provider_response(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    class OversizedResponse(FakeResponse):
+        def read(self, amount=-1):
+            return b"x" * (amount + 1 if amount > 0 else 300_000)
+
+    monkeypatch.setattr("repopilot.llm.urlopen", lambda *args, **kwargs: OversizedResponse({}))
+    assert generate_grounded_answer("Where is auth?", [{"path": "src/auth.py", "snippet": "auth"}]) is None
