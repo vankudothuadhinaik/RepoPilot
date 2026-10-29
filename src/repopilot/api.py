@@ -46,20 +46,20 @@ class RegisterRepository(BaseModel):
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
     limit: int = Field(default=8, ge=1, le=20)
-    language: str | None = None
-    path_prefix: str | None = None
+    language: str | None = Field(default=None, min_length=1, max_length=40, pattern="^[A-Za-z0-9_+#.-]+$")
+    path_prefix: str | None = Field(default=None, max_length=1024)
 
 
 class MemoryCreate(BaseModel):
     type: str = Field(min_length=1, max_length=40)
     summary: str = Field(min_length=1, max_length=4000)
     evidence: list[str] = Field(default_factory=list, max_length=30)
-    status: str = "proposed"
+    status: str = Field(default="proposed", pattern="^(proposed|verified|superseded|rejected)$")
 
 
 class MemoryUpdate(BaseModel):
     summary: str | None = Field(default=None, max_length=4000)
-    status: str | None = None
+    status: str | None = Field(default=None, pattern="^(proposed|verified|superseded|rejected)$")
 
 
 @app.get("/health/live")
