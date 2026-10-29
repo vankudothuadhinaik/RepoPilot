@@ -155,13 +155,13 @@ def extract_imports(path: str, content: str, language: str) -> list[dict[str, st
                 if stripped == ")":
                     in_import_block = False
                     continue
-                match = re.match(r"""(?:[\w.]+\s+)?["']([^"']+)["']""", stripped)
-                if match:
-                    add(match.group(1), "import")
+                block_match = re.match(r"""(?:[\w.]+\s+)?["']([^"']+)["']""", stripped)
+                if block_match:
+                    add(block_match.group(1), "import")
                 continue
-            match = re.match(r"""import\s+(?:[\w.]+\s+)?["']([^"']+)["']""", stripped)
-            if match:
-                add(match.group(1), "import")
+            single_match = re.match(r"""import\s+(?:[\w.]+\s+)?["']([^"']+)["']""", stripped)
+            if single_match:
+                add(single_match.group(1), "import")
         return imports
 
     if language in {"c", "c/c++", "cpp"}:
