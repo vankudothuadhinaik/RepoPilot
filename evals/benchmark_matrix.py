@@ -63,6 +63,7 @@ def run_matrix(
             )
             report = run(materialized)
             report["repository"] = root.name
+            report["root"] = str(root)
             if source_revisions and root.name in source_revisions:
                 report["source_commit"] = source_revisions[root.name]
             if redact_paths:
