@@ -313,3 +313,22 @@ def test_search_normalizes_identifier_tokens_and_boosts_matching_paths(fixture_r
     assert results
     assert results[0]["path"] == "src/auth_token.py"
     assert any(item["path"] == "docs/guide.md" for item in results)
+
+def test_fallback_search_uses_same_path_boost_and_ignores_punctuation_only_queries(fixture_repo, store):
+    (fixture_repo / "src").mkdir()
+    (fixture_repo / "docs").mkdir()
+    (fixture_repo / "src" / "auth_token.py").write_text(
+        "def auth_token():\n    return 'auth token implementation'\n", encoding="utf-8"
+    )
+    (fixture_repo / "docs" / "guide.md").write_text(
+        "The auth token configuration guide explains the auth token workflow.\n",
+        encoding="utf-8",
+    )
+    repo = store.index(index_repository(fixture_repo))
+
+    assert store.search(repo["id"], "!!!") == []
+    with store.connect() as db:
+        results = store._fallback_search(db, repo["id"], "auth_token", 5, None, None)
+
+    assert results[0]["path"] == "src/auth_token.py"
+    assert any(item["path"] == "docs/guide.md" for item in results)
