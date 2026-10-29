@@ -10,7 +10,7 @@ RepoPilot aims to help developers understand unfamiliar repositories, find relev
 
 ## Implemented in the MVP
 
-- Local repository registration and re-indexing.
+- Local repository registration and content-hash-based incremental persistence on re-index; unchanged file bodies and FTS entries are left untouched.
 - File filtering, common secret-file exclusions, symlink skipping, and file-size limits.
 - Python function/class discovery using the standard-library AST parser.
 - Python import relationship extraction.
@@ -27,7 +27,6 @@ RepoPilot aims to help developers understand unfamiliar repositories, find relev
 - Semantic embeddings or reranking.
 - Additional LLM provider adapters beyond the OpenAI-compatible chat-completions interface.
 - Complete Java/C++/TypeScript symbol and call-graph analysis.
-- Incremental per-file re-indexing (the current implementation replaces one repository's index).
 - Background indexing jobs.
 - Authentication, multi-user tenancy, cloud repository import, approved patch application, and isolated command execution.
 - A meaningful 50+ question benchmark or production security certification.
@@ -100,7 +99,7 @@ npm install
 npm run dev
 ```
 
-Open the local Vite URL printed by the command. The dashboard can register local repositories, search indexed text, and retrieve line-addressable evidence citations. The Vite dev server proxies API and health requests to `127.0.0.1:8000`.
+Open the local Vite URL printed by the command. The dashboard can register local repositories, search indexed text, retrieve line-addressable evidence citations, and re-index while showing added/updated/removed/unchanged file counts. The Vite dev server proxies API and health requests to `127.0.0.1:8000`.
 
 ## Docker
 
