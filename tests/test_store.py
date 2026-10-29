@@ -1,3 +1,5 @@
+import json
+
 from repopilot.indexer import index_repository
 
 
@@ -43,7 +45,6 @@ def test_incremental_reindex_updates_only_changed_and_removed_files(fixture_repo
             "ORDER BY created_at DESC LIMIT 1",
             (repo_id,),
         ).fetchone()
-    import json
     details = json.loads(event["details_json"])
     assert details["changed"] >= 1
     assert details["removed"] == 1
