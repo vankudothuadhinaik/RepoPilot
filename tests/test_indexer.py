@@ -1,6 +1,6 @@
 import pytest
 
-from repopilot.indexer import index_repository, parse_python
+from repopilot.indexer import PARSER_VERSION, index_repository, parse_python
 
 
 def test_extracts_python_symbols_and_skips_secrets(fixture_repo):
@@ -36,3 +36,20 @@ def test_known_hashes_skip_parsing_unchanged_files(fixture_repo, monkeypatch):
     assert result["files"]
     assert result["symbols"] == []
     assert result["imports"] == []
+
+
+
+def test_python_symbols_include_nested_qualified_names_and_signatures():
+    source = """\
+def outer(value: int) -> str:
+    class Inner(Base):
+        async def method(self, item: str) -> bool:
+            def nested(flag=False):
+                return flag
+            return True
+"""
+    symbols = {item["qualified_name"]: item for item in parse_python("sample.py", source)}
+    assert symbols["outer"]["signature"] == "def outer(value: int) -> str"
+    assert symbols["outer.Inner"]["signature"] == "class Inner(Base)"
+    assert symbols["outer.Inner.method"]["signature"] == "async def method(self, item: str) -> bool"
+    assert symbols["outer.Inner.method.nested"]["signature"] == "def nested(flag=False)"
