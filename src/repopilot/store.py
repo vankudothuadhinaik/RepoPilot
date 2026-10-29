@@ -332,6 +332,8 @@ class Store:
         ).fetchall()
         result = []
         terms = list(dict.fromkeys(re.findall(r"[A-Za-z0-9]+", query.casefold())))
+        if not terms:
+            return []
         for row in rows:
             path = row["path"]
             if language and row["language"] != language:
@@ -346,9 +348,11 @@ class Store:
                     "path": path, "language": row["language"],
                     "snippet": content[:500], "rank": 0.0,
                 })
-            if len(result) >= limit:
-                break
-        return result
+        def path_score(item: dict[str, Any]) -> int:
+            path_tokens = set(re.findall(r"[A-Za-z0-9]+", item["path"].casefold()))
+            return sum(term in path_tokens for term in terms)
+
+        return sorted(result, key=lambda item: (-path_score(item), item["path"]))[:limit]
 
     def symbols(self, repo_id: str, query: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         """Search symbol metadata by simple name, qualified name, kind, path, or signature."""
