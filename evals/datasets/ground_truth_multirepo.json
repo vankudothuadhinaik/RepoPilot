@@ -277,7 +277,7 @@
       "query": "REQUIRED_COLUMNS event_id patient_key",
       "expected_path": "healthstream_etl.py",
       "expected_start_line": 14,
-      "expected_end_line": 14,
+      "expected_end_line": 24,
       "category": "input_validation",
       "expected_fact": "ETL requires the declared input columns"
     },
@@ -327,7 +327,7 @@
       "query": "aggregates event_date encounter_type",
       "expected_path": "healthstream_etl.py",
       "expected_start_line": 121,
-      "expected_end_line": 121,
+      "expected_end_line": 123,
       "category": "aggregation",
       "expected_fact": "Daily summaries aggregate by date and encounter type"
     },
@@ -377,7 +377,7 @@
       "query": "bestBid bids empty numeric_limits",
       "expected_path": "src/OrderBook.cpp",
       "expected_start_line": 152,
-      "expected_end_line": 152,
+      "expected_end_line": 153,
       "category": "order_book",
       "expected_fact": "Empty bid books use a minimum-price sentinel"
     },
@@ -387,7 +387,7 @@
       "query": "free empty storage make_unique",
       "expected_path": "src/OrderPool.cpp",
       "expected_start_line": 22,
-      "expected_end_line": 22,
+      "expected_end_line": 23,
       "category": "memory_pool",
       "expected_fact": "Order pool allocates more storage when the free list is empty"
     },
