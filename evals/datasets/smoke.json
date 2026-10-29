@@ -1,0 +1,23 @@
+[
+  {
+    "id": "smoke-001",
+    "question": "Find the greet function",
+    "expected_path": "app.py",
+    "category": "symbol_lookup",
+    "query": "greet"
+  },
+  {
+    "id": "smoke-002",
+    "question": "Where is the Service class?",
+    "expected_path": "app.py",
+    "category": "symbol_lookup",
+    "query": "Service"
+  },
+  {
+    "id": "smoke-003",
+    "question": "What is in a missing file?",
+    "expected_path": null,
+    "category": "abstention",
+    "query": "this_token_should_not_exist_12345"
+  }
+]
