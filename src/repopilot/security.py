@@ -138,6 +138,108 @@ def safe_repository_root(raw: str | Path) -> Path:
     return root
 
 
+def _read_windows_safe_text(path: Path, root_resolved: Path, relative: Path) -> str | None:
+    """Open through a Windows handle, reject reparse points, and verify final-path containment."""
+    import ctypes
+    import msvcrt
+    import stat
+    from ctypes import wintypes
+
+    class FileTime(ctypes.Structure):
+        _fields_ = [("low", wintypes.DWORD), ("high", wintypes.DWORD)]
+
+    class ByHandleFileInformation(ctypes.Structure):
+        _fields_ = [
+            ("attributes", wintypes.DWORD),
+            ("creation_time", FileTime),
+            ("access_time", FileTime),
+            ("write_time", FileTime),
+            ("volume_serial", wintypes.DWORD),
+            ("size_high", wintypes.DWORD),
+            ("size_low", wintypes.DWORD),
+            ("link_count", wintypes.DWORD),
+            ("file_index_high", wintypes.DWORD),
+            ("file_index_low", wintypes.DWORD),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    create_file = kernel32.CreateFileW
+    create_file.argtypes = [
+        wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+        wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+    ]
+    create_file.restype = wintypes.HANDLE
+    get_info = kernel32.GetFileInformationByHandle
+    get_info.argtypes = [wintypes.HANDLE, ctypes.POINTER(ByHandleFileInformation)]
+    get_info.restype = wintypes.BOOL
+    get_final_path = kernel32.GetFinalPathNameByHandleW
+    get_final_path.argtypes = [wintypes.HANDLE, wintypes.LPWSTR, wintypes.DWORD, wintypes.DWORD]
+    get_final_path.restype = wintypes.DWORD
+    close_handle = kernel32.CloseHandle
+    close_handle.argtypes = [wintypes.HANDLE]
+    close_handle.restype = wintypes.BOOL
+
+    invalid_handle = ctypes.c_void_p(-1).value
+    handle = create_file(
+        str(path), 0x80000000, 0x00000007, None, 3, 0x00000080 | 0x00200000, None
+    )
+    if handle == invalid_handle:
+        return None
+
+    fd: int | None = None
+    try:
+        info = ByHandleFileInformation()
+        if not get_info(handle, ctypes.byref(info)):
+            return None
+        if info.attributes & 0x00000400:  # FILE_ATTRIBUTE_REPARSE_POINT
+            return None
+        size = (info.size_high << 32) | info.size_low
+        if size > MAX_FILE_BYTES:
+            return None
+
+        final_buffer = ctypes.create_unicode_buffer(32768)
+        final_length = get_final_path(handle, final_buffer, len(final_buffer), 0)
+        if not final_length or final_length >= len(final_buffer):
+            return None
+        final_path = final_buffer.value
+        if final_path.startswith("\\\\?\\UNC\\"):
+            final_path = "\\\\" + final_path[8:]
+        elif final_path.startswith("\\\\?\\"):
+            final_path = final_path[4:]
+        root_norm = os.path.normcase(os.path.abspath(str(root_resolved)))
+        final_norm = os.path.normcase(os.path.abspath(final_path))
+        if os.path.commonpath((root_norm, final_norm)) != root_norm:
+            return None
+
+        fd = msvcrt.open_osfhandle(handle, os.O_RDONLY | getattr(os, "O_BINARY", 0))
+        handle = invalid_handle
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode):
+            return None
+        chunks: list[bytes] = []
+        remaining = MAX_FILE_BYTES + 1
+        while remaining:
+            chunk = os.read(fd, min(65536, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        after = os.fstat(fd)
+        identity_before = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+        identity_after = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+        if identity_before != identity_after or len(raw) > MAX_FILE_BYTES or b"\x00" in raw:
+            return None
+        return raw.decode("utf-8")
+    except (OSError, UnicodeError, ValueError):
+        return None
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if handle != invalid_handle:
+            close_handle(handle)
+
+
 def read_safe_text(path: Path, *, root: Path | None = None) -> str | None:
     """Read bounded UTF-8 text without following symlinks during POSIX path traversal.
 
@@ -206,6 +308,8 @@ def read_safe_text(path: Path, *, root: Path | None = None) -> str | None:
             finally:
                 for descriptor in reversed(opened_fds):
                     os.close(descriptor)
+        elif os.name == "nt":
+            return _read_windows_safe_text(path, root_resolved, relative)
         else:
             resolved = path.resolve(strict=True)
             if os.path.commonpath((str(root_resolved), str(resolved))) != str(root_resolved):
