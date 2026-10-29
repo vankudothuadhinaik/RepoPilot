@@ -1,7 +1,7 @@
 """Optional MCP server. Install with: pip install -e '.[mcp]'."""
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP  # type: ignore[import-not-found]  # type: ignore[import-not-found]
+from mcp.server.fastmcp import FastMCP  # type: ignore[import-not-found]
 
 from repopilot.store import Store
 
