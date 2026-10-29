@@ -29,7 +29,7 @@ RepoPilot aims to help developers understand unfamiliar repositories, find relev
 - Complete Java/C++/TypeScript symbol and call-graph analysis.
 - Filesystem walking and hashing are still full-tree on reindex; unchanged file parsing and SQLite/FTS writes are skipped, with changed/deleted paths updated incrementally.
 - Background indexing jobs.
-- Authentication, multi-user tenancy, cloud repository import, approved patch application, and isolated command execution.
+- Multi-user tenancy, cloud repository import, approved patch application, and isolated command execution. Optional bearer-token protection is available for the HTTP API; it is not a full identity or role system.
 - A meaningful 50+ question benchmark or production security certification.
 
 These are explicit follow-up milestones, not completed claims.
@@ -61,7 +61,7 @@ repopilot repos
 repopilot serve
 ```
 
-Open `http://127.0.0.1:8000/docs`, register a repository with `POST /api/repos`, and use the returned repository ID to search or list symbols. The database defaults to `.repopilot/repopilot.sqlite3`; set `REP_PILOT_DATA_DIR` to change it.
+Open `http://127.0.0.1:8000/docs`, register a repository with `POST /api/repos`, and use the returned repository ID to search or list symbols. The database defaults to `.repopilot/repopilot.sqlite3`; set `REP_PILOT_DATA_DIR` to change it. The API is intended for loopback use by default. To protect API routes with a bearer token, set `REP_PILOT_API_TOKEN` to a long random secret; then send `Authorization: Bearer YOUR_TOKEN` on `/api/*` requests. The CLI refuses non-loopback binds unless this token is configured. This is a single shared token, not user authentication or multi-tenant authorization.
 
 ### API example
 
