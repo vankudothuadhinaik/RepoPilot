@@ -61,3 +61,14 @@ See [live provider evaluation](live-provider-evaluation.md) for the opt-in provi
 The synthetic suite includes an identifier regression for `auth_token`: FTS tokenization splits identifier punctuation into searchable terms, and a bounded exact path-token boost ranks the matching implementation file above generic documentation with the same terms. The SQLite FTS path and the fallback search path use the same query-token and path-ranking policy. Punctuation-only queries return no results instead of matching every file.
 
 This remains lexical ranking, not semantic retrieval. Review the per-query ranks in the benchmark artifact rather than treating a passing threshold as proof of broad real-world performance. The reviewed source-ground-truth set checks 13 positive questions across five implementation modules plus two unsupported queries; it is deliberately offline and does not spend provider credits. Its scope is still this repository, not an independently sampled external corpus. Provider behavior belongs to the opt-in live-provider evaluation.
+
+
+## Sharing benchmark matrices safely
+
+The matrix runner records a repository commit when available, making measurements easier to reproduce against a pinned revision. It also supports path redaction for reports that may be shared:
+
+```bash
+PYTHONPATH=src python evals/benchmark_matrix.py /path/to/repo-small /path/to/repo-medium /path/to/repo-large --redact-paths --output benchmark-matrix.json
+```
+
+Path redaction replaces absolute repository roots with `<redacted>`; it does not anonymize repository names or guarantee that every report field is safe to publish. Review output before sharing it, especially for private repository names, source-derived metadata, and scan errors. Commit identifiers and runtime measurements should be retained when reproducibility matters. A redacted report is not a substitute for permission to inspect the repositories.
