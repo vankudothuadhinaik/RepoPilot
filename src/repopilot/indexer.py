@@ -145,17 +145,23 @@ def extract_imports(path: str, content: str, language: str) -> list[dict[str, st
         return imports
 
     if language == "go":
-        for match in re.finditer(
-            r'^\s*import\s+(?:[\w.]+\s+)?["\']([^"\']+)["\']',
-            content, flags=re.MULTILINE,
-        ):
-            add(match.group(1), "import")
-        for block in re.finditer(
-            r"^[ \t]*import[ \t]*\((.*?)^[ \t]*\)", content,
-            flags=re.MULTILINE | re.DOTALL,
-        ):
-            for target in re.findall(r'["\']([^"\']+)["\']', block.group(1)):
-                add(target, "import")
+        in_import_block = False
+        for line in content.splitlines():
+            stripped = line.strip()
+            if not in_import_block and re.match(r"^import\s*\(", stripped):
+                in_import_block = True
+                continue
+            if in_import_block:
+                if stripped == ")":
+                    in_import_block = False
+                    continue
+                match = re.match(r"""(?:[\w.]+\s+)?["']([^"']+)["']""", stripped)
+                if match:
+                    add(match.group(1), "import")
+                continue
+            match = re.match(r"""import\s+(?:[\w.]+\s+)?["']([^"']+)["']""", stripped)
+            if match:
+                add(match.group(1), "import")
         return imports
 
     if language in {"c", "c/c++", "cpp"}:
