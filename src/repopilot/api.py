@@ -85,7 +85,7 @@ def list_repositories() -> list[dict[str, Any]]:
 @app.post("/api/repos", status_code=201)
 def register_repository(payload: RegisterRepository) -> dict[str, Any]:
     try:
-        indexed = index_repository(payload.path, store.file_hashes(payload.path))
+        indexed = index_repository(payload.path, store.file_hashes(payload.path), store.parser_version_for_root(payload.path))
         repo = store.index(indexed)
         repo["errors"] = json.loads(repo.pop("errors_json", "[]"))
         repo["coverage"] = {**indexed["coverage"], "symbols_found": repo["symbol_count"]}
@@ -112,7 +112,11 @@ def repository_detail(repo_id: str) -> dict[str, Any]:
 def reindex_repository(repo_id: str) -> dict[str, Any]:
     repo = require_repo(repo_id)
     try:
-        indexed = index_repository(repo["root_path"], store.file_hashes(repo["root_path"]))
+        indexed = index_repository(
+            repo["root_path"],
+            store.file_hashes(repo["root_path"]),
+            repo.get("parser_version"),
+        )
         result = store.index(indexed)
         result["coverage"] = {**indexed["coverage"], "symbols_found": result["symbol_count"]}
         result["errors"] = json.loads(result.pop("errors_json", "[]"))
