@@ -59,26 +59,26 @@
       "query": "safe_repository_root",
       "expected_path": "src/repopilot/security.py",
       "expected_symbol": "safe_repository_root",
-      "expected_start_line": 130,
-      "expected_end_line": 138,
+      "expected_start_line": 123,
+      "expected_end_line": 131,
       "category": "filesystem_safety",
       "repository": "RepoPilot",
       "expected_fact": "Repository root validation prevents traversal outside the permitted root.",
       "expected_fact_anchor": "def safe_repository_root",
-      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
+      "source_revision": "773b4de9ddc72f611763cb642c25ba2ea9e7b4dc"
     },
     {
       "id": "ground-truth-007",
       "query": "read_safe_text open file descriptor nofollow",
       "expected_path": "src/repopilot/security.py",
       "expected_symbol": "read_safe_text",
-      "expected_start_line": 243,
-      "expected_end_line": 335,
+      "expected_start_line": 236,
+      "expected_end_line": 328,
       "category": "filesystem_safety",
       "repository": "RepoPilot",
       "expected_fact": "Safe file reads use handle-based checks and no-follow semantics.",
       "expected_fact_anchor": "def read_safe_text",
-      "source_revision": "52e2e6b212405087fc79fd46ec3bb0edee5dc952"
+      "source_revision": "773b4de9ddc72f611763cb642c25ba2ea9e7b4dc"
     },
     {
       "id": "ground-truth-008",
