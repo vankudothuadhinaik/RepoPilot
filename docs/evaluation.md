@@ -72,3 +72,16 @@ PYTHONPATH=src python evals/benchmark_matrix.py /path/to/repo-small /path/to/rep
 ```
 
 Path redaction replaces absolute repository roots with `<redacted>`; it does not anonymize repository names or guarantee that every report field is safe to publish. Review output before sharing it, especially for private repository names, source-derived metadata, and scan errors. Commit identifiers and runtime measurements should be retained when reproducibility matters. A redacted report is not a substitute for permission to inspect the repositories.
+
+
+## Multi-repository source-grounded evaluation
+
+Run the pinned multi-repository evaluation locally:
+
+```bash
+PYTHONPATH=src python evals/run_multirepo_ground_truth.py --root . --output multirepo_ground_truth_results.json
+```
+
+The versioned dataset `evals/datasets/ground_truth_multirepo.json` contains 41 cases (31 positive expected-source-range cases and 10 unsupported queries) across RepoPilot and pinned source snapshots from DataPulse-Analytics, HealthStream-ETL, and low-latency-matching-engine. The snapshot commit IDs and upstream URLs are recorded in the dataset and copied into the report. The evaluator registers each corpus separately, excludes the dataset and fixture directory from the RepoPilot corpus, checks source-line snippets against the indexed snapshot, and reports Recall@1/5, MRR@5, citation-range validity, optional symbol-range accuracy, unsupported-query abstention, category breakdowns, and per-case outcomes. CI publishes the JSON report for 30 days.
+
+**Review status:** this is a maintainer-authored evaluation set with source-range checks; the dataset explicitly records that independent second-person review is still pending. Do not call it independently reviewed until another reviewer verifies the questions and expected ranges. It also does not prove semantic entailment, represent all codebases, or replace a live-provider evaluation. The offline evaluator calls no external LLM provider and does not need API credentials.
