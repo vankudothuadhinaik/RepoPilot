@@ -88,3 +88,36 @@ def test_provider_corpus_excludes_labels_and_external_fixtures(tmp_path):
     assert (corpus / "src" / "app.py").is_file()
     assert not (corpus / "evals" / "datasets").exists()
     assert not (corpus / "evals" / "corpora").exists()
+
+
+def test_positive_case_checks_expected_fact_anchor_range_and_quoted_evidence(tmp_path):
+    source = tmp_path / "src" / "a.py"
+    source.parent.mkdir()
+    source.write_text("def greet():\n    return 'hi'\n", encoding="utf-8")
+    question = {
+        "id": "positive-anchor",
+        "expected_path": "src/a.py",
+        "expected_start_line": 1,
+        "expected_end_line": 2,
+        "expected_fact": "The greet function returns the greeting string.",
+        "expected_fact_anchor": "def greet",
+    }
+    evidence = {
+        "path": "src/a.py",
+        "start_line": 1,
+        "end_line": 2,
+        "snippet": "1: def greet():\n2:     return 'hi'",
+    }
+    response = {
+        "answer": '"def greet(): return \'hi\'" [[src/a.py]]',
+        "abstained": False,
+        "evidence": [evidence],
+        "mode": "llm",
+    }
+
+    scored = score_case(question, response, tmp_path)
+
+    assert scored["expected_fact"] == question["expected_fact"]
+    assert scored["expected_fact_anchor_valid"]
+    assert scored["expected_range_covered"]
+    assert scored["answer_quote_supported"]
