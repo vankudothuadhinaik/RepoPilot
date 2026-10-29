@@ -1,4 +1,4 @@
-from repopilot.provider_eval import citation_is_valid, citation_paths, score_case
+from evals.run_provider_eval import citation_is_valid, citation_paths, score_case
 
 def test_citation_paths_only_accept_closed_tokens():
     assert citation_paths("Claim [[src/a.py]].") == ["src/a.py"]
