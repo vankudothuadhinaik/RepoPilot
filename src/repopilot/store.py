@@ -220,6 +220,16 @@ class Store:
             row["index_delta"] = delta
             return row
 
+
+    def parser_version_for_root(self, root_path: str | Path) -> str | None:
+        """Return the parser version associated with an indexed repository root."""
+        canonical_root = str(Path(root_path).expanduser().resolve())
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT parser_version FROM repositories WHERE root_path=?", (canonical_root,)
+            ).fetchone()
+            return row["parser_version"] if row else None
+
     def file_hashes(self, root_path: str | Path) -> dict[str, str]:
         """Return indexed content hashes for a repository root, if registered."""
         canonical_root = str(Path(root_path).expanduser().resolve())
