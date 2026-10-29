@@ -13,8 +13,8 @@ class FakeResponse:
     def __exit__(self, *args):
         return False
 
-    def read(self):
-        return self.payload
+    def read(self, amount=-1):
+        return self.payload if amount < 0 else self.payload[:amount]
 
 
 def test_llm_is_opt_in(monkeypatch):
