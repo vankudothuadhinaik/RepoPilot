@@ -162,7 +162,7 @@ def _read_windows_safe_text(path: Path, root_resolved: Path, relative: Path) -> 
             ("file_index_low", wintypes.DWORD),
         ]
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32 = getattr(ctypes, "WinDLL")("kernel32", use_last_error=True)
     create_file = kernel32.CreateFileW
     create_file.argtypes = [
         wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
@@ -211,7 +211,7 @@ def _read_windows_safe_text(path: Path, root_resolved: Path, relative: Path) -> 
         if os.path.commonpath((root_norm, final_norm)) != root_norm:
             return None
 
-        fd = msvcrt.open_osfhandle(handle, os.O_RDONLY | getattr(os, "O_BINARY", 0))
+        fd = getattr(msvcrt, "open_osfhandle")(handle, os.O_RDONLY | getattr(os, "O_BINARY", 0))
         handle = invalid_handle
         before = os.fstat(fd)
         if not stat.S_ISREG(before.st_mode):
