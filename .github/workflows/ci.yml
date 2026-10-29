@@ -36,6 +36,13 @@ jobs:
           fail_ci_if_error: false
       - run: python -m compileall -q src
       - run: PYTHONPATH=src python evals/run_eval.py
+      - name: Publish retrieval benchmark report
+        uses: actions/upload-artifact@v4
+        with:
+          name: repopilot-retrieval-benchmark-${{ github.sha }}
+          path: retrieval_benchmark_results.json
+          if-no-files-found: error
+          retention-days: 30
 
   web-build:
     runs-on: ubuntu-latest
