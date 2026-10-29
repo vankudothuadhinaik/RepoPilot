@@ -79,13 +79,13 @@ def test_safe_read_accepts_regular_bounded_file(fixture_repo):
     assert read_safe_text(target, root=fixture_repo) == "def safe_function(): return 1\n"
 
 def test_gitignore_directory_patterns_and_case_sensitivity(fixture_repo):
-    (fixture_repo / ".gitignore").write_text("logs/\\n", encoding="utf-8")
+    (fixture_repo / ".gitignore").write_text("logs/\n", encoding="utf-8")
     ignored_dir = fixture_repo / "logs"
     ignored_dir.mkdir()
-    (ignored_dir / "secret.py").write_text("def hidden(): pass\\n", encoding="utf-8")
+    (ignored_dir / "secret.py").write_text("def hidden(): pass\n", encoding="utf-8")
     visible_dir = fixture_repo / "logs2"
     visible_dir.mkdir()
-    (visible_dir / "public.py").write_text("def visible(): pass\\n", encoding="utf-8")
+    (visible_dir / "public.py").write_text("def visible(): pass\n", encoding="utf-8")
 
     indexed = index_repository(fixture_repo)
     paths = {item["path"] for item in indexed["files"]}
@@ -93,9 +93,9 @@ def test_gitignore_directory_patterns_and_case_sensitivity(fixture_repo):
     assert "logs2/public.py" in paths
 
     # A negation with different case must not re-include a case-sensitive pattern.
-    (fixture_repo / ".gitignore").write_text("*.py\\n!Keep.PY\\n", encoding="utf-8")
-    (fixture_repo / "Keep.PY").write_text("def uppercase_extension(): pass\\n", encoding="utf-8")
-    (fixture_repo / "keep.py").write_text("def lowercase_extension(): pass\\n", encoding="utf-8")
+    (fixture_repo / ".gitignore").write_text("*.py\n!Keep.PY\n", encoding="utf-8")
+    (fixture_repo / "Keep.PY").write_text("def uppercase_extension(): pass\n", encoding="utf-8")
+    (fixture_repo / "keep.py").write_text("def lowercase_extension(): pass\n", encoding="utf-8")
     indexed = index_repository(fixture_repo)
     paths = {item["path"] for item in indexed["files"]}
     assert "Keep.PY" in paths
