@@ -32,7 +32,7 @@ function App() {
   const [answer, setAnswer] = React.useState("");
   const [apiToken, setApiToken] = React.useState("");
   const [message, setMessage] = React.useState("Connect to your local RepoPilot API.");
-  const [busy, setBusy] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);\n  const requestSequence = React.useRef(0);
   const authHeaders = (): Record<string, string> => apiToken ? { Authorization: `Bearer ${apiToken}` } : {};
   const authMessage = "Authentication required (401). Enter the configured local API token, then select Connect / refresh.";
 
@@ -113,7 +113,7 @@ function App() {
     setEvidence([]);
     setAnswer("");
     try {
-      const response = await fetch(`/api/repos/${selected}/search`, {
+      const response = await fetch(`/api/repos/${repositoryId}/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ question: query, limit: 12 }),
@@ -135,7 +135,7 @@ function App() {
     setBusy(true);
     setResults([]);
     try {
-      const response = await fetch(`/api/repos/${selected}/ask`, {
+      const response = await fetch(`/api/repos/${repositoryId}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ question: query, limit: 8 }),
