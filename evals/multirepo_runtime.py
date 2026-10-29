@@ -15,9 +15,9 @@ except ModuleNotFoundError:
     from multirepo_scoring import _build_report, _evaluate_question
 
 
-def _load_dataset(dataset_path: Path) -> tuple[bytes, dict[str, Any], list[dict[str, Any]], dict[str, dict[str, Any]]]:
-    dataset_bytes = dataset_path.read_bytes()
-    dataset = json.loads(dataset_bytes)
+def _validate_dataset(
+    dataset: dict[str, Any],
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
     questions = dataset["questions"]
     repositories = {item["id"]: item for item in dataset["repositories"]}
     if not questions or not repositories:
@@ -25,11 +25,24 @@ def _load_dataset(dataset_path: Path) -> tuple[bytes, dict[str, Any], list[dict[
     for question in questions:
         if question.get("repository") not in repositories:
             raise ValueError(f"unknown repository in case {question.get('id')!r}")
-        if question.get("expected_path") and (
-            not isinstance(question.get("expected_start_line"), int)
-            or not isinstance(question.get("expected_end_line"), int)
-        ):
+        if question.get("expected_path") and not _has_expected_range(question):
             raise ValueError(f"positive case {question.get('id')!r} must include expected line bounds")
+    return questions, repositories
+
+
+def _has_expected_range(question: dict[str, Any]) -> bool:
+    return (
+        isinstance(question.get("expected_start_line"), int)
+        and isinstance(question.get("expected_end_line"), int)
+    )
+
+
+def _load_dataset(
+    dataset_path: Path,
+) -> tuple[bytes, dict[str, Any], list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    dataset_bytes = dataset_path.read_bytes()
+    dataset = json.loads(dataset_bytes)
+    questions, repositories = _validate_dataset(dataset)
     return dataset_bytes, dataset, questions, repositories
 
 
