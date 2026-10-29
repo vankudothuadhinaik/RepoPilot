@@ -172,6 +172,15 @@ class Store:
                         (repo_id, relation["source"], relation["target"], relation["kind"], 0.7),
                     )
 
+            added = set(incoming) - set(current)
+            updated = changed - added
+            delta = {
+                "added": len(added),
+                "updated": len(updated),
+                "removed": len(removed),
+                "unchanged": len(incoming) - len(changed),
+                "files_scanned": len(incoming),
+            }
             timestamp = now()
             db.execute(
                 "INSERT INTO audit_events VALUES (?,?,?,?,?,?,?)",
@@ -181,6 +190,8 @@ class Store:
                     json.dumps({
                         "files": len(incoming),
                         "changed": len(changed),
+                        "added": len(added),
+                        "updated": len(updated),
                         "removed": len(removed),
                         "unchanged": len(incoming) - len(changed),
                         "symbols_parsed": len(data["symbols"]),
@@ -194,8 +205,9 @@ class Store:
                 "UPDATE repositories SET file_count=?, symbol_count=? WHERE id=?",
                 (len(incoming), symbol_count, repo_id),
             )
-            row = db.execute("SELECT * FROM repositories WHERE id=?", (repo_id,)).fetchone()
-            return dict(row)
+            row = dict(db.execute("SELECT * FROM repositories WHERE id=?", (repo_id,)).fetchone())
+            row["index_delta"] = delta
+            return row
 
     def file_hashes(self, root_path: str | Path) -> dict[str, str]:
         """Return indexed content hashes for a repository root, if registered."""
