@@ -6,6 +6,9 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+PARSER_VERSION = "2"
+
+
 from repopilot.security import (
     _gitignore_patterns,
     read_safe_text,
@@ -37,24 +40,66 @@ def language_for(path: Path) -> str:
 
 
 def parse_python(path: str, content: str) -> list[dict[str, Any]]:
+    """Extract Python definitions with lexical qualified names and readable signatures."""
     try:
         tree = ast.parse(content)
     except SyntaxError:
         return []
-    symbols: list[dict[str, Any]] = []
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            kind = "class" if isinstance(node, ast.ClassDef) else "function"
-            symbols.append({
+
+    class DefinitionVisitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.scope: list[str] = []
+            self.symbols: list[dict[str, Any]] = []
+
+        @staticmethod
+        def signature(node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) -> str:
+            if isinstance(node, ast.ClassDef):
+                bases = [ast.unparse(base) for base in node.bases]
+                return f"class {node.name}({', '.join(bases)})" if bases else f"class {node.name}"
+            prefix = "async def " if isinstance(node, ast.AsyncFunctionDef) else "def "
+            arguments = ast.unparse(node.args)
+            result = f"{prefix}{node.name}({arguments})"
+            if node.returns is not None:
+                result += f" -> {ast.unparse(node.returns)}"
+            return result
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            self._record(node, "class")
+            self.scope.append(node.name)
+            for child in node.body:
+                self.visit(child)
+            self.scope.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self._record(node, "function")
+            self.scope.append(node.name)
+            for child in node.body:
+                self.visit(child)
+            self.scope.pop()
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self._record(node, "function")
+            self.scope.append(node.name)
+            for child in node.body:
+                self.visit(child)
+            self.scope.pop()
+
+        def _record(
+            self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef, kind: str
+        ) -> None:
+            self.symbols.append({
                 "name": node.name,
-                "qualified_name": node.name,
+                "qualified_name": ".".join([*self.scope, node.name]),
                 "kind": kind,
                 "path": path,
                 "start_line": int(node.lineno),
                 "end_line": int(getattr(node, "end_lineno", node.lineno)),
-                "signature": node.name,
+                "signature": self.signature(node),
             })
-    return sorted(symbols, key=lambda item: (item["start_line"], item["name"]))
+
+    visitor = DefinitionVisitor()
+    visitor.visit(tree)
+    return sorted(visitor.symbols, key=lambda item: (item["start_line"], item["qualified_name"]))
 
 
 def extract_imports(path: str, content: str, language: str) -> list[dict[str, str]]:
@@ -73,7 +118,9 @@ def extract_imports(path: str, content: str, language: str) -> list[dict[str, st
 
 
 def index_repository(
-    raw_root: str | Path, known_hashes: dict[str, str] | None = None
+    raw_root: str | Path,
+    known_hashes: dict[str, str] | None = None,
+    known_parser_version: str | None = None,
 ) -> dict[str, Any]:
     root = safe_repository_root(raw_root)
     patterns = _gitignore_patterns(root)
@@ -99,7 +146,11 @@ def index_repository(
             })
             # Reuse the persisted symbol/import records for byte-identical files.
             # The file body is still read and hashed so deletions and edits are detected.
-            if known_hashes is None or known_hashes.get(rel) != digest:
+            if (
+                known_hashes is None
+                or known_parser_version != PARSER_VERSION
+                or known_hashes.get(rel) != digest
+            ):
                 if language == "python":
                     symbols.extend(parse_python(rel, content))
                 imports.extend(extract_imports(rel, content, language))
@@ -107,6 +158,7 @@ def index_repository(
             errors.append({"path": str(path), "error": str(exc)})
     return {
         "root": str(root),
+        "parser_version": PARSER_VERSION,
         "name": root.name,
         "branch": git_value(root, "branch", "--show-current"),
         "commit": git_value(root, "rev-parse", "HEAD"),
