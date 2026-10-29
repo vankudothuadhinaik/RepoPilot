@@ -180,7 +180,7 @@ def test_symlinked_root_gitignore_is_not_followed(fixture_repo, tmp_path):
 
 
 def test_gitignore_escaped_comment_is_a_pattern(fixture_repo):
-    (fixture_repo / ".gitignore").write_text(r"\\#private.py\n", encoding="utf-8")
+    (fixture_repo / ".gitignore").write_text("\\\\#private.py\n", encoding="utf-8")
     (fixture_repo / "#private.py").write_text("def hidden(): pass\n", encoding="utf-8")
     (fixture_repo / "public.py").write_text("def public(): pass\n", encoding="utf-8")
 
