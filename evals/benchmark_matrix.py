@@ -11,7 +11,20 @@ except ImportError:  # Support direct script execution from the evals directory.
     from benchmark_repository import run
 
 
-def run_matrix(roots: list[Path], *, redact_paths: bool = False) -> dict[str, Any]:
+def parse_source_revision(value: str) -> tuple[str, str]:
+    """Parse a pinned upstream source revision as NAME=SHA."""
+    name, separator, revision = value.partition("=")
+    if not separator or not name.strip() or not revision.strip():
+        raise argparse.ArgumentTypeError("source revisions must use NAME=SHA")
+    return name.strip(), revision.strip()
+
+
+def run_matrix(
+    roots: list[Path],
+    *,
+    redact_paths: bool = False,
+    source_revisions: dict[str, str] | None = None,
+) -> dict[str, Any]:
     """Benchmark distinct repository roots and optionally remove absolute paths."""
     resolved_roots = [root.expanduser().resolve(strict=True) for root in roots]
     if not resolved_roots:
@@ -20,8 +33,10 @@ def run_matrix(roots: list[Path], *, redact_paths: bool = False) -> dict[str, An
         raise ValueError("repository roots must be distinct")
 
     reports = [run(root) for root in resolved_roots]
-    if redact_paths:
-        for report in reports:
+    for report in reports:
+        if source_revisions and report["repository"] in source_revisions:
+            report["source_commit"] = source_revisions[report["repository"]]
+        if redact_paths:
             report["root"] = "<redacted>"
     return {
         "schema_version": 2,
@@ -49,8 +64,21 @@ def main() -> None:
         action="store_true",
         help="Replace absolute repository root paths in the report before sharing it",
     )
+    parser.add_argument(
+        "--source-revision",
+        action="append",
+        type=parse_source_revision,
+        default=[],
+        metavar="NAME=SHA",
+        help="Record a pinned upstream revision for a snapshot without its own .git metadata",
+    )
     args = parser.parse_args()
-    report = run_matrix(args.roots, redact_paths=args.redact_paths)
+    revisions = dict(args.source_revision)
+    if len(revisions) != len(args.source_revision):
+        parser.error("--source-revision names must be unique")
+    report = run_matrix(
+        args.roots, redact_paths=args.redact_paths, source_revisions=revisions
+    )
     args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2))
 
