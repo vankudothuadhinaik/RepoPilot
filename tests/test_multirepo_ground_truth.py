@@ -25,6 +25,22 @@ def test_multirepo_dataset_has_required_coverage_and_pinned_sources():
     assert all(item.get("expected_start_line") and item.get("expected_end_line") for item in positives)
 
 
+def test_single_repo_ground_truth_pins_each_question_revision():
+    from pathlib import Path
+
+    dataset = json.loads(
+        Path("evals/datasets/ground_truth.json").read_text(encoding="utf-8")
+    )
+    revisions = {item.get("source_revision") for item in dataset["questions"]}
+    assert len(revisions) >= 2
+    assert all(
+        isinstance(revision, str)
+        and len(revision) == 40
+        and all(character in "0123456789abcdef" for character in revision.lower())
+        for revision in revisions
+    )
+
+
 def test_encoded_negative_query_decodes():
     assert _query({"query_codepoints": [110, 111, 112, 101]}) == "nope"
     assert _query({"query": "exact query"}) == "exact query"
@@ -91,6 +107,7 @@ def test_repo_pilot_materializes_recorded_revision_and_rejects_missing_revision(
     assert not (destination / ".git").exists()
     assert not (destination / "evals" / "datasets" / "ground_truth.json").exists()
     assert not (destination / "docs" / "evaluation_audit.md").exists()
+    assert not (destination / "evals" / "corpora").exists()
 
     with pytest.raises(ValueError, match="required RepoPilot source revision"):
         _prepare_corpus(
