@@ -2,7 +2,7 @@
 
 ## Scope and reproducibility
 
-P0 hardening and P3 evaluation changes are present on `main` at commit `8f9a8c92385c1fd23156f0e5fa32bf7673842574`. The local release-validation run below was performed on Windows 11 with Python 3.14.8 and Docker Desktop, against that checkout plus the small type-safety and ground-truth maintenance fixes recorded in the working diff.
+P0 hardening and P3 evaluation changes are present on `main` at commit `8f9a8c92385c1fd23156f0e5fa32bf7673842574`; the validation metadata/type follow-up is committed as `b6e097235e597d487e25bd07f851ee546cffb38e`. The local release-validation run below was performed on Windows 11 with Python 3.14.8 and Docker Desktop against that follow-up checkout.
 
 - [CI run](https://github.com/vankudothuadhinaik/RepoPilot/actions/runs/40926370963) — passed; the optional live-provider step produced a failed provider report as expected and is non-blocking.
 - [CodeQL run](https://github.com/vankudothuadhinaik/RepoPilot/actions/runs/40926370962) — passed.
