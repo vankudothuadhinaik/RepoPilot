@@ -83,3 +83,14 @@ def test_run_matrix_materializes_pinned_snapshot_bundle(monkeypatch, tmp_path):
     assert report["reports"][0]["repository"] == "datapulse"
     assert report["reports"][0]["root"] == "<redacted>"
     assert report["reports"][0]["source_commit"] == "upstream-sha"
+
+
+def test_snapshot_materialization_rejects_revision_mismatch(tmp_path):
+    root = tmp_path / "snapshot"
+    root.mkdir()
+    (root / "snapshot.json").write_text(
+        json.dumps({"commit": "actual", "files": {"README.md": "# Snapshot\n"}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="pinned source revision mismatch"):
+        benchmark_matrix._materialize_snapshot(root, tmp_path / "materialized", "expected")
