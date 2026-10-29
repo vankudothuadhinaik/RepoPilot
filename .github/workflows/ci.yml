@@ -42,14 +42,14 @@ jobs:
       - name: Publish repository benchmark report
         uses: actions/upload-artifact@v7
         with:
-          name: repopilot-repository-benchmark-${{ github.sha }}
+          name: repopilot-repository-benchmark-py${{ matrix.python-version }}-${{ github.sha }}
           path: repository_benchmark_results.json
           if-no-files-found: error
           retention-days: 30
       - name: Publish retrieval benchmark report
         uses: actions/upload-artifact@v7
         with:
-          name: repopilot-retrieval-benchmark-${{ github.sha }}
+          name: repopilot-retrieval-benchmark-py${{ matrix.python-version }}-${{ github.sha }}
           path: retrieval_benchmark_results.json
           if-no-files-found: error
           retention-days: 30
