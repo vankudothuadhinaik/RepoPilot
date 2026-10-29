@@ -187,3 +187,47 @@ def test_repository_deletion_cleans_fts_and_cascades_related_rows(fixture_repo, 
         ).fetchone()[0] == 0
         assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+
+
+def test_symbol_search_matches_qualified_name_signature_kind_and_path(fixture_repo, store):
+    (fixture_repo / "src").mkdir()
+    (fixture_repo / "src" / "services.py").write_text(
+        "class BillingService:\n"
+        "    def charge(self, account_id: str) -> bool:\n"
+        "        return bool(account_id)\n\n"
+        "class UserService:\n"
+        "    def charge(self, user_id: str) -> bool:\n"
+        "        return bool(user_id)\n",
+        encoding="utf-8",
+    )
+    repo = store.index(index_repository(fixture_repo))
+    repo_id = repo["id"]
+
+    qualified = store.symbols(repo_id, "BillingService.charge")
+    assert len(qualified) == 1
+    assert qualified[0]["qualified_name"] == "BillingService.charge"
+
+    by_signature = store.symbols(repo_id, "account_id: str")
+    assert any(item["qualified_name"] == "BillingService.charge" for item in by_signature)
+
+    by_kind = store.symbols(repo_id, "class")
+    assert any(item["name"] == "BillingService" for item in by_kind)
+
+    by_path = store.symbols(repo_id, "src/services.py")
+    assert len(by_path) == 3
+
+
+def test_concurrent_same_snapshot_indexing_preserves_sqlite_integrity(fixture_repo, store):
+    from concurrent.futures import ThreadPoolExecutor
+
+    snapshot = index_repository(fixture_repo)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(lambda _: store.index(snapshot), range(8)))
+
+    repo_ids = {result["id"] for result in results}
+    assert len(repo_ids) == 1
+    repo_id = repo_ids.pop()
+    assert store.get_file(repo_id, "app.py") is not None
+    with store.connect() as db:
+        assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
