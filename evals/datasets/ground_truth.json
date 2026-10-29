@@ -1,6 +1,6 @@
 {
-  "title": "RepoPilot source-grounded validation questions",
-  "description": "A small hand-reviewed set for the RepoPilot repository. Positive cases identify a source file and Python symbol whose source range can be independently checked; the negative case must abstain.",
+  "title": "RepoPilot reviewed source-grounded validation questions",
+  "description": "A reviewed in-repository set spanning API evidence selection, indexing, SQLite retrieval and persistence, filesystem safety, and LLM-provider validation. Positive cases name a source file and Python symbol with an independently checked source range; encoded negative queries must abstain without self-matching the dataset.",
   "questions": [
     {
       "id": "ground-truth-001",
@@ -27,27 +27,141 @@
       "expected_end_line": 331
     },
     {
-      "id": "ground-truth-004",
+      "id": "ground-truth-005",
+      "query": "provider URL hostname port malformed",
+      "expected_path": "src/repopilot/llm.py",
+      "expected_symbol": "_provider_url",
+      "expected_start_line": 19,
+      "expected_end_line": 38,
+      "category": "provider_configuration"
+    },
+    {
+      "id": "ground-truth-006",
+      "query": "safe repository root resolve path",
+      "expected_path": "src/repopilot/security.py",
+      "expected_symbol": "safe_repository_root",
+      "expected_start_line": 130,
+      "expected_end_line": 138,
+      "category": "filesystem_safety"
+    },
+    {
+      "id": "ground-truth-007",
+      "query": "read safe text symlink regular file",
+      "expected_path": "src/repopilot/security.py",
+      "expected_symbol": "read_safe_text",
+      "expected_start_line": 243,
+      "expected_end_line": 335,
+      "category": "filesystem_safety"
+    },
+    {
+      "id": "ground-truth-008",
+      "query": "parse Python nested qualified names signature",
+      "expected_path": "src/repopilot/indexer.py",
+      "expected_symbol": "parse_python",
+      "expected_start_line": 43,
+      "expected_end_line": 102,
+      "category": "symbol_indexing"
+    },
+    {
+      "id": "ground-truth-009",
+      "query": "extract imports language module",
+      "expected_path": "src/repopilot/indexer.py",
+      "expected_symbol": "extract_imports",
+      "expected_start_line": 105,
+      "expected_end_line": 184,
+      "category": "import_indexing"
+    },
+    {
+      "id": "ground-truth-010",
+      "query": "fallback search path tokens ranking",
+      "expected_path": "src/repopilot/store.py",
+      "expected_symbol": "_fallback_search",
+      "expected_start_line": 333,
+      "expected_end_line": 360,
+      "category": "fallback_retrieval"
+    },
+    {
+      "id": "ground-truth-011",
+      "query": "create memory evidence summary proposed",
+      "expected_path": "src/repopilot/store.py",
+      "expected_symbol": "create_memory",
+      "expected_start_line": 404,
+      "expected_end_line": 421,
+      "category": "memory_persistence"
+    },
+    {
+      "id": "ground-truth-012",
+      "query": "grounded answer citation provider response",
+      "expected_path": "src/repopilot/llm.py",
+      "expected_symbol": "generate_grounded_answer",
+      "expected_start_line": 41,
+      "expected_end_line": 168,
+      "category": "grounded_answer_validation"
+    },
+    {
+      "id": "ground-truth-013",
+      "query": "ask repository query matched evidence abstained",
+      "expected_path": "src/repopilot/api.py",
+      "expected_symbol": "ask_repository",
+      "expected_start_line": 141,
+      "expected_end_line": 232,
+      "category": "evidence_selection"
+    },
+    {
+      "id": "ground-truth-014",
+      "query": "delete repository file search",
+      "expected_path": "src/repopilot/store.py",
+      "expected_symbol": "delete_repository",
+      "expected_start_line": 459,
+      "expected_end_line": 466,
+      "category": "repository_lifecycle"
+    },
+    {
+      "id": "ground-truth-015",
       "query_codepoints": [
-        112,
-        108,
-        105,
-        110,
-        116,
-        104,
+        113,
+        117,
+        117,
+        120,
         32,
         122,
-        121,
-        122,
-        122,
-        121,
+        120,
+        113,
         118,
-        97
+        112,
+        108
       ],
       "expected_path": null,
       "expected_symbol": null,
       "expected_start_line": null,
-      "expected_end_line": null
+      "expected_end_line": null,
+      "category": "unsupported_query"
+    },
+    {
+      "id": "ground-truth-016",
+      "query_codepoints": [
+        102,
+        108,
+        97,
+        114,
+        110,
+        32,
+        122,
+        121,
+        98,
+        98,
+        101,
+        114,
+        119,
+        111,
+        99,
+        107
+      ],
+      "expected_path": null,
+      "expected_symbol": null,
+      "expected_start_line": null,
+      "expected_end_line": null,
+      "category": "unsupported_query"
     }
   ]
 }
