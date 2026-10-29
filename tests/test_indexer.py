@@ -12,6 +12,28 @@ def test_extracts_python_symbols_and_skips_secrets(fixture_repo):
     assert {"greet", "Service"} <= names
 
 
+def test_python_symbols_include_nested_qualified_names_and_signatures():
+    source = """\
+def outer(value: int) -> str:
+    class Inner(Base):
+        def method(self, item: str) -> bool:
+            return bool(item)
+
+    async def child(flag: bool = False) -> None:
+        return None
+
+    return str(value)
+"""
+    symbols = parse_python("nested.py", source)
+    by_qualified = {item["qualified_name"]: item for item in symbols}
+
+    assert {"outer", "outer.Inner", "outer.Inner.method", "outer.child"} <= set(by_qualified)
+    assert by_qualified["outer"]["signature"] == "outer(value: int) -> str"
+    assert by_qualified["outer.Inner"]["signature"] == "class Inner(Base)"
+    assert by_qualified["outer.Inner.method"]["signature"] == "method(self, item: str) -> bool"
+    assert by_qualified["outer.child"]["signature"].startswith("async child(")
+
+
 def test_parse_syntax_error_returns_empty():
     assert parse_python("broken.py", "def broken(:\n") == []
 
