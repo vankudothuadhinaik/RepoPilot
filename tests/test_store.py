@@ -295,3 +295,21 @@ def test_concurrent_full_scans_and_reindexes_preserve_integrity(fixture_repo, st
     with store.connect() as db:
         assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+
+def test_search_normalizes_identifier_tokens_and_boosts_matching_paths(fixture_repo, store):
+    (fixture_repo / "src").mkdir()
+    (fixture_repo / "docs").mkdir()
+    (fixture_repo / "src" / "auth_token.py").write_text(
+        "def auth_token():\n    return 'auth token implementation'\n", encoding="utf-8"
+    )
+    (fixture_repo / "docs" / "guide.md").write_text(
+        "The auth token configuration guide explains the auth token workflow.\n",
+        encoding="utf-8",
+    )
+    repo = store.index(index_repository(fixture_repo))
+
+    results = store.search(repo["id"], "auth_token", limit=5)
+
+    assert results
+    assert results[0]["path"] == "src/auth_token.py"
+    assert any(item["path"] == "docs/guide.md" for item in results)
