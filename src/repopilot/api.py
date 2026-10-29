@@ -121,9 +121,25 @@ def ask_repository(repo_id: str, payload: AskRequest) -> dict[str, Any]:
         if not file_data:
             continue
         lines = file_data["content"].splitlines()
-        snippet = item.get("snippet", "")
+        query_terms = [term.casefold().strip(".,:;()[]{}<>\\\"'") for term in payload.question.split()]
+        query_terms = [term for term in query_terms if term]
+        matching_lines = [
+            index for index, line in enumerate(lines, start=1)
+            if any(term in line.casefold() for term in query_terms)
+        ]
+        start_line = matching_lines[0] if matching_lines else 1
+        end_line = matching_lines[-1] if matching_lines else min(len(lines), 1)
+        if end_line - start_line > 7:
+            end_line = start_line + 7
+        context_start = max(1, start_line - 2)
+        context_end = min(len(lines), end_line + 2)
+        snippet = "\\n".join(
+            f"{line_number}: {lines[line_number - 1]}"
+            for line_number in range(context_start, context_end + 1)
+        )
         evidence.append({
             "path": item["path"], "language": item["language"],
+            "start_line": context_start, "end_line": context_end,
             "snippet": snippet, "sha256": file_data["sha256"],
             "indexed_commit": require_repo(repo_id).get("indexed_commit"),
         })
