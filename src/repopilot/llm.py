@@ -55,7 +55,7 @@ def generate_grounded_answer(question: str, evidence: list[dict[str, Any]]) -> s
         with urlopen(request, timeout=20) as response:
             result = json.loads(response.read().decode("utf-8"))
         answer = result["choices"][0]["message"]["content"].strip()
-    except (OSError, ValueError, KeyError, IndexError, TypeError):
+    except (OSError, ValueError, KeyError, IndexError, TypeError, AttributeError):
         return None
 
     citations = set(_CITATION.findall(answer))
