@@ -41,7 +41,7 @@ This section separates automated checks from claims the project does **not** mak
 
 **Latest repository CI:** [view workflow runs](https://github.com/vankudothuadhinaik/RepoPilot/actions/workflows/ci.yml). The badge above reflects the workflow status for `main`; check the run page for the exact commit and individual job results.
 
-CI publishes the synthetic retrieval report as `repopilot-retrieval-benchmark-<commit-sha>` and a checked-out-repository performance baseline as `repopilot-repository-benchmark-<commit-sha>`, both for 30 days. The report includes Recall@5, Recall@10, MRR@10, abstention accuracy, and per-query expected paths/ranks. Run the same evaluation locally with:
+CI publishes the synthetic retrieval report as `repopilot-retrieval-benchmark-py<version>-<commit-sha>` and a checked-out-repository performance baseline as `repopilot-repository-benchmark-py<version>-<commit-sha>`, separately for Python 3.11 and 3.12, both for 30 days. The report includes Recall@5, Recall@10, MRR@10, abstention accuracy, and per-query expected paths/ranks. Run the same evaluation locally with:
 
 ```bash
 PYTHONPATH=src python evals/run_eval.py
