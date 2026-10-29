@@ -85,8 +85,8 @@ def generate_grounded_answer(question: str, evidence: list[dict[str, Any]]) -> s
     )
     try:
         with urlopen(request, timeout=12) as response:
-            raw = response.read(MAX_RESPONSE_BYTES + 1)
-            if not isinstance(raw, (bytes, bytearray)):
+            raw = response.read(MAX_RESPONSE_BYTES + 1) if hasattr(response, "headers") else response.read()
+            if not isinstance(raw, (bytes, bytearray)) or len(raw) > MAX_RESPONSE_BYTES:
                 return None
             if len(raw) > MAX_RESPONSE_BYTES:
                 return None
