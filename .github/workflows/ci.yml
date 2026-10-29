@@ -39,6 +39,15 @@ jobs:
       - run: python -m compileall -q src
       - run: PYTHONPATH=src python evals/run_eval.py
       - run: PYTHONPATH=src python evals/run_ground_truth.py --root .
+      - name: Multi-repository reviewed-range evaluation
+        run: PYTHONPATH=src python evals/run_multirepo_ground_truth.py --root . --output multirepo_ground_truth_results.json
+      - name: Publish multi-repository evaluation report
+        uses: actions/upload-artifact@v7
+        with:
+          name: repopilot-multirepo-ground-truth-py${{ matrix.python-version }}-${{ github.sha }}
+          path: multirepo_ground_truth_results.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Live provider evaluation (optional)
         if: ${{ env.OPENAI_EVAL_ENABLED == 'true' && matrix.python-version == '3.11' }}
         continue-on-error: true
