@@ -105,11 +105,12 @@ versioning change, not silently inferred by the evaluator.
 
 ## Integrity and evaluation controls
 
-- The single-repository evaluator copies the checkout to a temporary corpus,
-  applies `.gitignore` rules, and excludes labels and generated evaluation
-  artifacts. The multirepository cleaner excludes `evals/datasets` and
-  `evals/corpora` from the RepoPilot corpus. Existing tests cover these
-  exclusions; this prevents self-referential retrieval of the labels.
+- The single-repository and provider evaluators materialize each question's
+  recorded full `source_revision` with `git archive`; missing revisions fail
+  closed. Materialized snapshots exclude ground-truth datasets, audit reports,
+  external fixture corpora, and generated evaluation artifacts. The multirepo
+  evaluator uses the same materializer for its pinned RepoPilot revision.
+  Regression tests cover revision pinning and exclusions.
 - Cross-dataset overlap is intentional: the RepoPilot cases are reused to
   exercise both evaluators. It must not be described as an independent second
   corpus or independent review.
