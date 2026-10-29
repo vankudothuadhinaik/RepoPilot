@@ -27,7 +27,7 @@ def main() -> None:
     args = parser.parse_args()
     store = Store()
     if args.command == "index":
-        print(json.dumps(store.index(index_repository(args.path, store.file_hashes(args.path))), indent=2))
+        print(json.dumps(store.index(index_repository(args.path, store.file_hashes(args.path), store.parser_version_for_root(args.path))), indent=2))
     elif args.command == "search":
         print(json.dumps(store.search(args.repository_id, args.query, args.limit), indent=2))
     elif args.command == "repos":
