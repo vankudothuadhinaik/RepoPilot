@@ -29,11 +29,9 @@ def is_secret_path(path: Path) -> bool:
 
 
 def _read_ignore_file(path: Path) -> list[str]:
+    """Read raw ignore lines; GitIgnoreSpec owns comments, escapes, and whitespace rules."""
     try:
-        return [
-            line.rstrip() for line in path.read_text(encoding="utf-8").splitlines()
-            if line.strip() and not line.lstrip().startswith("#")
-        ]
+        return path.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeError):
         return []
 
