@@ -105,9 +105,12 @@ class Store:
         """
         with self.connect() as db:
             existing = db.execute(
-                "SELECT id FROM repositories WHERE root_path=?", (data["root"],)
+                "SELECT id, parser_version FROM repositories WHERE root_path=?", (data["root"],)
             ).fetchone()
             repo_id = existing["id"] if existing else str(uuid.uuid4())
+            parser_version = data.get("parser_version", PARSER_VERSION)
+            parser_changed = bool(existing and existing["parser_version"] != parser_version)
+
             db.execute(
                 """
                 INSERT INTO repositories(id,name,root_path,branch,indexed_commit,status,indexed_at,
@@ -115,14 +118,12 @@ class Store:
                 VALUES(?,?,?,?,?,'indexed',?,?,?,?,?)
                 ON CONFLICT(root_path) DO UPDATE SET
                     name=excluded.name, branch=excluded.branch, indexed_commit=excluded.indexed_commit,
-                    status='indexed', indexed_at=excluded.indexed_at, file_count=excluded.file_count,
-                    symbol_count=excluded.symbol_count, errors_json=excluded.errors_json,
-                    parser_version=excluded.parser_version
+                    status=excluded.status, indexed_at=excluded.indexed_at,
+                    errors_json=excluded.errors_json, parser_version=excluded.parser_version
                 """,
                 (
                     repo_id, data["name"], data["root"], data["branch"], data["commit"], now(),
-                    len(data["files"]), len(data["symbols"]), json.dumps(data["errors"]),
-                    data.get("parser_version", PARSER_VERSION),
+                    len(data["files"]), 0, json.dumps(data["errors"]), parser_version,
                 ),
             )
             repo_id = db.execute(
