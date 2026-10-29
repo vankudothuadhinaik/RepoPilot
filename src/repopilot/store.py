@@ -142,13 +142,6 @@ class Store:
                 path for path, item in incoming.items()
                 if current.get(path) != item["sha256"]
             }
-            if derived_rebuild:
-                # Source hashes can stay constant while parser output changes.
-                # Rebuild all derived rows transactionally; FTS/file bodies can be
-                # retained for unchanged files and are reinserted by the same loop.
-                db.execute("DELETE FROM symbols WHERE repository_id=?", (repo_id,))
-                db.execute("DELETE FROM relationships WHERE repository_id=?", (repo_id,))
-                changed = set(incoming)
             # A parser change invalidates derived symbol and relationship rows even
             # when source hashes are unchanged. Rebuild these tables transactionally.
             derived_rebuild = parser_changed or bool(data.get("force_derived_rebuild", False))
