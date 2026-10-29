@@ -98,7 +98,7 @@ def _quoted_answer_is_supported(answer: str, evidence: list[dict[str, Any]]) -> 
     quotes = re.findall(r'"([^"]+)"', answer)
     if not quotes or not citation_paths(answer):
         return False
-    source_text = _normalize_text("\n".join(_cited_source_lines(answer, evidence)))
+    source_text = _normalize_text(" ".join(_cited_source_lines(answer, evidence)))
     return all(_normalize_text(quote) in source_text for quote in quotes)
 
 
