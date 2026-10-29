@@ -8,7 +8,9 @@
       "src/database.py": "SQLite transaction wal checkpoint rollback savepoint handles database consistency and durability.",
       "src/indexer.py": "Contenthash incremental parserversion symbols qualified definitions skip unchanged parsing.",
       "src/search.py": "FTS5 bm25 ranking snippet query tokenizer fulltext retrieval result ordering.",
-      "src/llm.py": "OpenAI grounding citation provider response validates cited paths and abstains on unsupported answers."
+      "src/llm.py": "OpenAI grounding citation provider response validates cited paths and abstains on unsupported answers.",
+      "src/auth_token.py": "def auth_token(): bearer auth token validation handles authorization credentials.",
+      "docs/auth_token_guide.md": "The auth token guide explains how auth token validation and configuration work."
     },
     "web": {
       "src/dashboard.tsx": "Repository selector reindex delta unchanged added updated removed file counts.",
@@ -375,6 +377,13 @@
       "query": "absent starship",
       "expected_path": null,
       "category": "abstention"
+    },
+    {
+      "id": "retrieval-051",
+      "repo": "backend",
+      "query": "auth_token",
+      "expected_path": "src/auth_token.py",
+      "category": "identifier_tokenization_and_path_ranking"
     }
   ]
 }
