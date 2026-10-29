@@ -9,7 +9,7 @@ Both commits are pushed to `origin/main`.
 
 | Check | Result | Evidence |
 |---|---|---|
-| Single-repository ground truth | Passed 15/15; Recall@5 13/13; unsupported abstention 2/2 | `PYTHONPATH=src python evals/run_ground_truth.py --root .` |
+| Single-repository ground truth | Passed 15/15 across recorded per-question revisions; Recall@5 13/13; unsupported abstention 2/2 | `PYTHONPATH=src python evals/run_ground_truth.py --root .` |
 | Multirepository ground truth | Passed 41/41; Recall@1 29/31; Recall@5 31/31; MRR@5 0.9543; citation validity 31/31; symbol accuracy 13/13; abstention 10/10 | `PYTHONPATH=src python evals/run_multirepo_ground_truth.py --root . --output multirepo_ground_truth_results.json` |
 | Focused evaluation tests | Passed 15 tests | `python -m pytest tests/test_multirepo_ground_truth.py tests/test_provider_eval.py` |
 | Full Python tests | Passed 89 tests | `python -m pytest` |
@@ -20,11 +20,13 @@ Both commits are pushed to `origin/main`.
 
 ## Snapshot and reproducibility behavior
 
-The multirepository benchmark is fixed-revision by default. For the RepoPilot
-entry, `evals/multirepo_corpus.py` verifies that the dataset commit exists in
-the supplied Git repository and materializes it with `git archive` into an
-isolated temporary corpus. It does not index the worktree, `.git` directory,
-datasets, corpora, generated reports, or `docs/evaluation_audit.md`.
+The single-repository and multirepository benchmarks are fixed-revision by default.
+The single-repository runner materializes each question's `source_revision`; the
+multirepository runner materializes the RepoPilot dataset commit. The shared
+`evals/multirepo_corpus.py` helper verifies that each full Git SHA exists in the
+supplied repository and uses `git archive` to create isolated temporary corpora.
+It does not index the worktree, `.git` directory, ground-truth datasets, external
+fixture corpora, generated reports, or `docs/evaluation_audit.md`.
 
 The external repositories are materialized from their embedded `snapshot.json`
 file bundles after verifying upstream URL and commit metadata. The evaluator
