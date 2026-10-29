@@ -1,6 +1,6 @@
 import json
 
-from repopilot.indexer import index_repository
+from repopilot.indexer import PARSER_VERSION, index_repository
 
 
 def test_index_search_symbols_and_memory(fixture_repo, store):
@@ -89,3 +89,21 @@ def test_search_filters_are_applied_before_limit_and_use_directory_boundaries(fi
     assert len(results) == 1
     assert results[0]["path"] == "src/target.py"
     assert store.search(repo["id"], "marker", path_prefix="../src") == []
+
+
+
+def test_parser_version_change_rebuilds_unchanged_symbol_records(fixture_repo, store):
+    snapshot = index_repository(fixture_repo)
+    snapshot["parser_version"] = "1"
+    repo = store.index(snapshot)
+
+    known_hashes = store.file_hashes(fixture_repo)
+    old_version = store.parser_version_for_root(fixture_repo)
+    refreshed = index_repository(fixture_repo, known_hashes, old_version)
+    updated = store.index(refreshed)
+
+    assert updated["parser_version"] == PARSER_VERSION
+    assert any(
+        item["qualified_name"] == "Service.greet"
+        for item in store.symbols(repo["id"])
+    )
