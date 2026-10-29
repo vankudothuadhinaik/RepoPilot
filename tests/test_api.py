@@ -107,3 +107,27 @@ def test_every_api_route_requires_authentication(client, fixture_repo):
     for method, url, body in requests:
         response = client.request(method, url, json=body)
         assert response.status_code == 401, f"{method} {url} returned {response.status_code}"
+
+
+
+def test_memory_status_and_search_filters_are_validated(client, fixture_repo, auth_headers):
+    registered = client.post("/api/repos", json={"path": str(fixture_repo)}, headers=auth_headers)
+    repo_id = registered.json()["id"]
+    invalid_memory = client.post(
+        f"/api/repos/{repo_id}/memories",
+        json={"type": "note", "summary": "bad status", "status": "unknown"},
+        headers=auth_headers,
+    )
+    assert invalid_memory.status_code == 422
+    invalid_update = client.patch(
+        "/api/memories/not-a-real-id",
+        json={"status": "unknown"},
+        headers=auth_headers,
+    )
+    assert invalid_update.status_code == 422
+    invalid_language = client.post(
+        f"/api/repos/{repo_id}/search",
+        json={"question": "greet", "language": "../"},
+        headers=auth_headers,
+    )
+    assert invalid_language.status_code == 422
