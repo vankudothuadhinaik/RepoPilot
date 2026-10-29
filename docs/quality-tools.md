@@ -1,6 +1,6 @@
 # Quality tooling setup
 
-RepoPilot's GitHub Actions workflow already produces `coverage.xml` and conditionally uploads it to Codecov. Upload is skipped until the repository secret `CODECOV_TOKEN` is configured.
+RepoPilot's GitHub Actions workflow produces `coverage.xml` and conditionally uploads it to Codecov. Upload is skipped until the repository secret `CODECOV_TOKEN` is configured. The workflow uses the CodeQL engine for CI analysis with SARIF upload disabled; a green CodeQL workflow does not mean GitHub code-scanning alerts have been published.
 
 ## Codecov
 
@@ -23,4 +23,4 @@ CodeScene is an optional external GitHub integration, not a package dependency i
 4. Review its first baseline report before setting quality gates.
 5. If CodeScene provides a GitHub status/check, verify it appears on a test pull request and document the expected gate here.
 
-This repository's connected GitHub API does not expose secrets or third-party account administration, so I have not claimed to install Codecov or CodeScene on your behalf. Codecov upload remains conditional until you add its token; CodeScene must be authorized in its own UI.
+This repository's connected GitHub API does not expose secrets or third-party account administration, so Codecov/CodeScene activation must be verified in their own dashboards. Codecov upload remains conditional until you add its token; CodeScene must be authorized in its own UI. CodeQL workflow completion runs analysis but does not publish SARIF findings while `upload: false` remains configured. Enable GitHub code scanning for this repository (if its visibility/plan supports it) before enabling upload and claiming alerts are available.

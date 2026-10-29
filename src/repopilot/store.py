@@ -28,7 +28,6 @@ class Store:
         connection = sqlite3.connect(self.path, timeout=10)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys=ON")
-        connection.execute("PRAGMA journal_mode=WAL")
         try:
             yield connection
             connection.commit()
@@ -37,6 +36,10 @@ class Store:
 
     def _init_db(self) -> None:
         with self.connect() as db:
+            # Set WAL mode once during initialization, not on every connection.
+            # Reissuing this pragma on concurrent requests can contend for a schema
+            # lock before the actual transaction even starts.
+            db.execute("PRAGMA journal_mode=WAL")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS repositories (
                     id TEXT PRIMARY KEY, name TEXT NOT NULL, root_path TEXT NOT NULL UNIQUE,
@@ -105,24 +108,31 @@ class Store:
         """
         with self.connect() as db:
             existing = db.execute(
-                "SELECT id FROM repositories WHERE root_path=?", (data["root"],)
+                "SELECT id, parser_version FROM repositories WHERE root_path=?", (data["root"],)
             ).fetchone()
             repo_id = existing["id"] if existing else str(uuid.uuid4())
+            parser_version = data.get("parser_version", PARSER_VERSION)
+            parser_changed = bool(existing and existing["parser_version"] != parser_version)
+            scan_partial = bool(data.get("errors"))
+            derived_rebuild = parser_changed and not scan_partial
+            indexed_status = "partial" if scan_partial else "indexed"
+            persisted_parser_version = (
+                existing["parser_version"] if parser_changed and scan_partial else parser_version
+            )
+
             db.execute(
                 """
                 INSERT INTO repositories(id,name,root_path,branch,indexed_commit,status,indexed_at,
                     file_count,symbol_count,errors_json,parser_version)
-                VALUES(?,?,?,?,?,'indexed',?,?,?,?,?)
+                VALUES(?,?,?,?,?,?, ?,?,?,?,?)
                 ON CONFLICT(root_path) DO UPDATE SET
                     name=excluded.name, branch=excluded.branch, indexed_commit=excluded.indexed_commit,
-                    status='indexed', indexed_at=excluded.indexed_at, file_count=excluded.file_count,
-                    symbol_count=excluded.symbol_count, errors_json=excluded.errors_json,
-                    parser_version=excluded.parser_version
+                    status=excluded.status, indexed_at=excluded.indexed_at,
+                    errors_json=excluded.errors_json, parser_version=excluded.parser_version
                 """,
                 (
-                    repo_id, data["name"], data["root"], data["branch"], data["commit"], now(),
-                    len(data["files"]), len(data["symbols"]), json.dumps(data["errors"]),
-                    data.get("parser_version", PARSER_VERSION),
+                    repo_id, data["name"], data["root"], data["branch"], data["commit"], indexed_status, now(),
+                    len(data["files"]), 0, json.dumps(data["errors"]), persisted_parser_version,
                 ),
             )
             repo_id = db.execute(
@@ -134,11 +144,20 @@ class Store:
                 "SELECT path, sha256 FROM files WHERE repository_id=?", (repo_id,)
             ).fetchall()
             current = {row["path"]: row["sha256"] for row in current_rows}
-            removed = set(current) - set(incoming)
+            # A partial scan cannot prove that absent paths were deleted. Preserve those
+            # rows until a complete scan confirms removal.
+            removed = set() if scan_partial else set(current) - set(incoming)
             changed = {
                 path for path, item in incoming.items()
                 if current.get(path) != item["sha256"]
             }
+            # A parser change invalidates derived symbol and relationship rows even
+            # when source hashes are unchanged. Rebuild these tables transactionally.
+            derived_rebuild = derived_rebuild or (bool(data.get("force_derived_rebuild", False)) and not scan_partial)
+            if derived_rebuild:
+                db.execute("DELETE FROM symbols WHERE repository_id=?", (repo_id,))
+                db.execute("DELETE FROM relationships WHERE repository_id=?", (repo_id,))
+                changed = set(incoming)
 
             # Delete removed files and all derived rows tied to those paths.
             for path in sorted(removed):
@@ -147,7 +166,8 @@ class Store:
                 db.execute("DELETE FROM symbols WHERE repository_id=? AND path=?", (repo_id, path))
                 db.execute("DELETE FROM relationships WHERE repository_id=? AND source=?", (repo_id, path))
 
-            # Rewrite only changed/new file bodies and their derived indexes.
+            # Rebuild mode reparses every unchanged file; the indexer includes all
+            # derived records in that mode, so rewrite all changed paths consistently.
             symbols_by_path: dict[str, list[dict[str, Any]]] = {}
             for symbol in data["symbols"]:
                 symbols_by_path.setdefault(symbol["path"], []).append(symbol)
@@ -196,7 +216,7 @@ class Store:
             db.execute(
                 "INSERT INTO audit_events VALUES (?,?,?,?,?,?,?)",
                 (
-                    str(uuid.uuid4()), repo_id, "index_repository", data["root"], "success",
+                    str(uuid.uuid4()), repo_id, "index_repository", data["root"], "partial" if scan_partial else "success",
                     timestamp,
                     json.dumps({
                         "files": len(incoming),
@@ -206,15 +226,20 @@ class Store:
                         "removed": len(removed),
                         "unchanged": len(incoming) - len(changed),
                         "symbols_parsed": len(data["symbols"]),
+                        "parser_version_changed": parser_changed,
+                        "scan_partial": scan_partial,
                     }),
                 ),
             )
+            counts = db.execute(
+                "SELECT COUNT(*) AS file_count FROM files WHERE repository_id=?", (repo_id,)
+            ).fetchone()
             symbol_count = db.execute(
                 "SELECT COUNT(*) AS count FROM symbols WHERE repository_id=?", (repo_id,)
             ).fetchone()["count"]
             db.execute(
                 "UPDATE repositories SET file_count=?, symbol_count=? WHERE id=?",
-                (len(incoming), symbol_count, repo_id),
+                (counts["file_count"], symbol_count, repo_id),
             )
             row = dict(db.execute("SELECT * FROM repositories WHERE id=?", (repo_id,)).fetchone())
             row["index_delta"] = delta
@@ -313,17 +338,32 @@ class Store:
         return result
 
     def symbols(self, repo_id: str, query: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+        """Search symbol metadata by simple name, qualified name, kind, path, or signature."""
+        bounded_limit = max(1, min(limit, 200))
         with self.connect() as db:
-            if query:
+            if query and query.strip():
+                needle = query.strip().casefold()
                 rows = db.execute("""
                     SELECT name,qualified_name,kind,path,start_line,end_line,signature
-                    FROM symbols WHERE repository_id=? AND name LIKE ? ORDER BY name LIMIT ?
-                """, (repo_id, f"%{query}%", max(1, min(limit, 200)))).fetchall()
+                    FROM symbols
+                    WHERE repository_id=? AND (
+                        instr(lower(name), ?) > 0
+                        OR instr(lower(qualified_name), ?) > 0
+                        OR instr(lower(kind), ?) > 0
+                        OR instr(lower(path), ?) > 0
+                        OR instr(lower(signature), ?) > 0
+                    )
+                    ORDER BY
+                        CASE WHEN lower(qualified_name)=? THEN 0
+                             WHEN lower(name)=? THEN 1 ELSE 2 END,
+                        path,start_line
+                    LIMIT ?
+                """, (repo_id, needle, needle, needle, needle, needle, needle, needle, bounded_limit)).fetchall()
             else:
                 rows = db.execute("""
                     SELECT name,qualified_name,kind,path,start_line,end_line,signature
                     FROM symbols WHERE repository_id=? ORDER BY path,start_line LIMIT ?
-                """, (repo_id, max(1, min(limit, 200)))).fetchall()
+                """, (repo_id, bounded_limit)).fetchall()
             return [dict(row) for row in rows]
 
     def get_file(self, repo_id: str, path: str) -> dict[str, Any] | None:

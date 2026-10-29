@@ -33,25 +33,29 @@ function App() {
   const [apiToken, setApiToken] = React.useState("");
   const [message, setMessage] = React.useState("Connect to your local RepoPilot API.");
   const [busy, setBusy] = React.useState(false);
+  const requestSequence = React.useRef(0);
   const authHeaders = (): Record<string, string> => apiToken ? { Authorization: `Bearer ${apiToken}` } : {};
+  const authMessage = "Authentication required (401). Enter the configured local API token, then select Connect / refresh.";
 
   async function refresh() {
     try {
       const response = await fetch("/api/repos", { headers: authHeaders() });
-      if (!response.ok) throw new Error("API unavailable");
+      if (response.status === 401) throw new Error(authMessage);
+      if (!response.ok) throw new Error(`API request failed (${response.status})`);
       const data: Repo[] = await response.json();
       setRepos(data);
       if (!selected || !data.some((repo) => repo.id === selected)) {
         setSelected(data[0]?.id ?? "");
       }
       setMessage(data.length ? `${data.length} indexed repository(s)` : "No repositories indexed yet.");
-    } catch {
-      setMessage("API not reachable. Start the backend with: repopilot serve");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "API not reachable. Start the backend with: repopilot serve");
     }
   }
   React.useEffect(() => { void refresh(); }, []);
 
   function selectRepository(id: string) {
+    requestSequence.current += 1;
     setSelected(id);
     setResults([]);
     setEvidence([]);
@@ -107,46 +111,54 @@ function App() {
   async function search(event: React.FormEvent) {
     event.preventDefault();
     if (!selected || !query.trim()) return;
+    const requestId = ++requestSequence.current;
+    const repositoryId = selected;
     setBusy(true);
     setEvidence([]);
     setAnswer("");
     try {
-      const response = await fetch(`/api/repos/${selected}/search`, {
+      const response = await fetch(`/api/repos/${repositoryId}/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ question: query, limit: 12 }),
       });
       const data = await response.json();
+      if (requestId !== requestSequence.current) return;
       if (!response.ok) throw new Error(data.detail ?? "Search failed");
       setResults(data.results);
       setMessage(`${data.result_count} result(s)`);
     } catch (error) {
+      if (requestId !== requestSequence.current) return;
       setMessage(error instanceof Error ? error.message : "Search failed");
     } finally {
-      setBusy(false);
+      if (requestId === requestSequence.current) setBusy(false);
     }
   }
 
   async function ask(event: React.FormEvent) {
     event.preventDefault();
     if (!selected || !query.trim()) return;
+    const requestId = ++requestSequence.current;
+    const repositoryId = selected;
     setBusy(true);
     setResults([]);
     try {
-      const response = await fetch(`/api/repos/${selected}/ask`, {
+      const response = await fetch(`/api/repos/${repositoryId}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ question: query, limit: 8 }),
       });
       const data = await response.json();
+      if (requestId !== requestSequence.current) return;
       if (!response.ok) throw new Error(data.detail ?? "Evidence retrieval failed");
       setAnswer(data.answer);
       setEvidence(data.evidence);
       setMessage(data.abstained ? "No verifiable evidence found" : `${data.evidence.length} evidence citation(s)`);
     } catch (error) {
+      if (requestId !== requestSequence.current) return;
       setMessage(error instanceof Error ? error.message : "Evidence retrieval failed");
     } finally {
-      setBusy(false);
+      if (requestId === requestSequence.current) setBusy(false);
     }
   }
 
@@ -157,7 +169,7 @@ function App() {
       <span className="local">LOCAL-FIRST</span>
     </header>
     <div className="status" role="status">{message}</div>
-    <section className="panel"><div className="section-head"><div><p className="eyebrow">AUTHENTICATION</p><h2>Local API token</h2></div></div><input type="password" value={apiToken} onChange={(event) => setApiToken(event.target.value)} placeholder="Bearer token from Doppler" autoComplete="off" /></section>
+    <section className="panel"><div className="section-head"><div><p className="eyebrow">AUTHENTICATION</p><h2>Local API token</h2></div></div><div className="inline-form"><input type="password" value={apiToken} onChange={(event) => setApiToken(event.target.value)} placeholder="Bearer token from Doppler" autoComplete="off" /><button onClick={() => void refresh()} disabled={busy}>Connect / refresh</button></div></section>
     <section className="panel">
       <div className="section-head"><div><p className="eyebrow">01 / ONBOARD</p><h2>Your repositories</h2></div><button onClick={() => void refresh()} disabled={busy}>Refresh</button></div>
       <form onSubmit={addRepo} className="inline-form">

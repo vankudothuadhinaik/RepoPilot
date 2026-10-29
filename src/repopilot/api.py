@@ -3,6 +3,7 @@ from __future__ import annotations
 import hmac
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -45,20 +46,20 @@ class RegisterRepository(BaseModel):
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
     limit: int = Field(default=8, ge=1, le=20)
-    language: str | None = None
-    path_prefix: str | None = None
+    language: str | None = Field(default=None, min_length=1, max_length=40, pattern="^[A-Za-z0-9_+#.-]+$")
+    path_prefix: str | None = Field(default=None, max_length=1024)
 
 
 class MemoryCreate(BaseModel):
     type: str = Field(min_length=1, max_length=40)
     summary: str = Field(min_length=1, max_length=4000)
     evidence: list[str] = Field(default_factory=list, max_length=30)
-    status: str = "proposed"
+    status: str = Field(default="proposed", pattern="^(proposed|verified|superseded|rejected)$")
 
 
 class MemoryUpdate(BaseModel):
     summary: str | None = Field(default=None, max_length=4000)
-    status: str | None = None
+    status: str | None = Field(default=None, pattern="^(proposed|verified|superseded|rejected)$")
 
 
 @app.get("/health/live")
@@ -151,16 +152,26 @@ def ask_repository(repo_id: str, payload: AskRequest) -> dict[str, Any]:
         if not file_data:
             continue
         lines = file_data["content"].splitlines()
-        query_terms = [term.casefold().strip(".,:;()[]{}<>\\\"'") for term in payload.question.split()]
-        query_terms = [term for term in query_terms if term]
-        matching_lines = [
-            index for index, line in enumerate(lines, start=1)
-            if any(term in line.casefold() for term in query_terms)
+        if not lines:
+            continue
+        # Prefer a compact window around actual query-term matches. If none match,
+        # cite a bounded beginning-of-file overview rather than pretending there was
+        # a keyword match; the returned evidence still points to the exact indexed file.
+        terms = [
+            term.casefold() for term in re.findall(r"[A-Za-z0-9_./:-]+", payload.question)
+            if len(term) >= 2
         ]
-        start_line = matching_lines[0] if matching_lines else 1
-        end_line = matching_lines[-1] if matching_lines else min(len(lines), 1)
-        if end_line - start_line > 7:
-            end_line = start_line + 7
+        matching_lines = [
+            number for number, line in enumerate(lines, start=1)
+            if any(term in line.casefold() for term in terms)
+        ]
+        if matching_lines:
+            start_line = matching_lines[0]
+            end_line = matching_lines[-1]
+            if end_line - start_line > 7:
+                end_line = start_line + 7
+        else:
+            start_line, end_line = 1, min(len(lines), 8)
         context_start = max(1, start_line - 2)
         context_end = min(len(lines), end_line + 2)
         snippet = "\n".join(

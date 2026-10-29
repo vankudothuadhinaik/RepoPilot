@@ -105,3 +105,24 @@ def test_extracts_static_import_edges_for_common_languages():
     assert {edge["target"] for edge in go_edges} == {"fmt", "net/http"}
     cpp_edges = extract_imports("main.cpp", cases[3][2], "cpp")
     assert {edge["target"] for edge in cpp_edges} == {"vector", "local/header.hpp"}
+
+
+
+def test_failed_safe_read_marks_scan_partial_and_keeps_path_out_of_success_snapshot(
+    fixture_repo, monkeypatch
+):
+    import repopilot.indexer as indexer
+
+    target = fixture_repo / "app.py"
+    target.write_text("def existing_function():\n    return 1\n", encoding="utf-8")
+    original = indexer.read_safe_text
+
+    def fail_target(path, *, root=None):
+        if path.name == "app.py":
+            return None
+        return original(path, root=root)
+
+    monkeypatch.setattr(indexer, "read_safe_text", fail_target)
+    result = index_repository(fixture_repo)
+    assert any(item["path"] == "app.py" for item in result["errors"])
+    assert "app.py" not in {item["path"] for item in result["files"]}

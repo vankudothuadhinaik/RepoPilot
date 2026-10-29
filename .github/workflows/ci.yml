@@ -30,7 +30,7 @@ jobs:
       - run: python -m pytest --cov=src/repopilot --cov-report=xml --cov-report=term-missing
       - name: Upload coverage to Codecov
         if: ${{ env.CODECOV_TOKEN != '' }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ env.CODECOV_TOKEN }}
           files: coverage.xml
@@ -38,10 +38,19 @@ jobs:
       - run: python -m compileall -q src
       - run: PYTHONPATH=src python evals/run_eval.py
       - run: PYTHONPATH=src python evals/run_ground_truth.py --root .
-      - name: Publish retrieval benchmark report
-        uses: actions/upload-artifact@v4
+      - name: Benchmark checked-out repository
+        run: PYTHONPATH=src python evals/benchmark_repository.py . --output repository_benchmark_results.json
+      - name: Publish repository benchmark report
+        uses: actions/upload-artifact@v7
         with:
-          name: repopilot-retrieval-benchmark-${{ github.sha }}
+          name: repopilot-repository-benchmark-py${{ matrix.python-version }}-${{ github.sha }}
+          path: repository_benchmark_results.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish retrieval benchmark report
+        uses: actions/upload-artifact@v7
+        with:
+          name: repopilot-retrieval-benchmark-py${{ matrix.python-version }}-${{ github.sha }}
           path: retrieval_benchmark_results.json
           if-no-files-found: error
           retention-days: 30
@@ -52,10 +61,10 @@ jobs:
       run:
         working-directory: apps/web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci --ignore-scripts
@@ -66,15 +75,41 @@ jobs:
   docker-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - name: Validate Compose configuration
+        env:
+          REP_PILOT_API_TOKEN: ci-smoke-token
+        run: docker compose -f compose.yaml config --quiet
       - name: Build container image
         run: docker build --tag repopilot:ci .
+      - name: Smoke-test container health and bearer authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name repopilot-smoke -p 127.0.0.1:8010:8000 \
+            -e REP_PILOT_API_TOKEN=ci-smoke-token repopilot:ci
+          trap 'docker rm -f repopilot-smoke >/dev/null 2>&1 || true' EXIT
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl --silent --show-error --fail http://127.0.0.1:8010/health/ready >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = "1"
+          unauthenticated_status=$(curl --silent --output /dev/null --write-out "%{http_code}" http://127.0.0.1:8010/api/repos)
+          test "$unauthenticated_status" = "401"
+          authenticated_status=$(curl --silent --output /dev/null --write-out "%{http_code}" \
+            -H "Authorization: Bearer ci-smoke-token" http://127.0.0.1:8010/api/repos)
+          test "$authenticated_status" = "200"
+
 
   optional-mcp:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
