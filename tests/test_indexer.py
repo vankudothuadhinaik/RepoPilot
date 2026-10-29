@@ -1,6 +1,6 @@
 import pytest
 
-from repopilot.indexer import PARSER_VERSION, index_repository, parse_python
+from repopilot.indexer import index_repository, parse_python
 
 
 def test_extracts_python_symbols_and_skips_secrets(fixture_repo):
