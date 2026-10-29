@@ -56,6 +56,8 @@ def score_case(question: dict[str, Any], response: dict[str, Any], root: Path) -
             "answer_citations_supported": bool(cited_paths) and set(cited_paths).issubset(
                 {item.get("path") for item in evidence}),
             "abstained": bool(response.get("abstained")),
+            "answer_mode": response.get("mode", "unknown"),
+            "provider_answer_generated": response.get("mode") == "llm",
         }
     return {
         "id": question["id"],
@@ -64,6 +66,8 @@ def score_case(question: dict[str, Any], response: dict[str, Any], root: Path) -
         ),
         "evidence_count": len(evidence),
         "answer_has_citations": bool(cited_paths),
+        "answer_mode": response.get("mode", "unknown"),
+        "provider_answer_generated": response.get("mode") == "llm",
     }
 
 def evaluate(root: Path) -> dict[str, Any]:
@@ -113,6 +117,10 @@ def evaluate(root: Path) -> dict[str, Any]:
                 round(sum(x["answer_has_citations"] for x in positives) / len(positives), 4)
                 if positives else None
             ),
+            "provider_answer_rate": (
+                round(sum(x["provider_answer_generated"] for x in positives) / len(positives), 4)
+                if positives else None
+            ),
             "supported_citation_rate": (
                 round(sum(x["answer_citations_supported"] for x in positives) / len(positives), 4)
                 if positives else None
@@ -127,6 +135,7 @@ def evaluate(root: Path) -> dict[str, Any]:
             x.get("expected_path_found", x.get("unsupported_question_abstained", False))
             for x in results
         )
+        passed = passed and all(x.get("provider_answer_generated", False) for x in positives)
         passed = passed and all(
             x.get("source_lines_valid", True) and x.get("answer_citations_supported", True)
             for x in positives

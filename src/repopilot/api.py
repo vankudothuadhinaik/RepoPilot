@@ -190,8 +190,8 @@ def ask_repository(repo_id: str, payload: AskRequest) -> dict[str, Any]:
         mode = "llm"
     else:
         answer = (
-            "Retrieved repository evidence is shown below. Configure OPENAI_API_KEY "
-            "and an OpenAI-compatible model endpoint for cited natural-language answers."
+            "A cited AI answer could not be generated or did not pass citation validation. "
+            "The retrieved repository evidence is shown below."
         )
         mode = "retrieval_only"
     return {

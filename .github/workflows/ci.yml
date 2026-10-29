@@ -40,20 +40,46 @@ jobs:
       - run: PYTHONPATH=src python evals/run_eval.py
       - run: PYTHONPATH=src python evals/run_ground_truth.py --root .
       - name: Live provider evaluation (optional)
-        if: ${{ env.OPENAI_API_KEY != '' }}
+        if: ${{ env.OPENAI_API_KEY != '' && matrix.python-version == '3.11' }}
+        continue-on-error: true
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL || 'https://api.openai.com/v1' }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4.1-mini' }}
         run: PYTHONPATH=src python evals/run_provider_eval.py --root . --output provider-evaluation.json
       - name: Publish live provider evaluation report
-        if: ${{ always() && env.OPENAI_API_KEY != '' }}
+        if: ${{ always() && env.OPENAI_API_KEY != '' && matrix.python-version == '3.11' }}
         uses: actions/upload-artifact@v7
         with:
           name: repopilot-live-provider-evaluation-${{ github.sha }}-py${{ matrix.python-version }}
           path: provider-evaluation.json
           if-no-files-found: ignore
           retention-days: 7
+      - name: Summarize live provider evaluation
+        if: ${{ always() && env.OPENAI_API_KEY != '' && matrix.python-version == '3.11' }}
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = Path('provider-evaluation.json')
+          if not report.is_file():
+              summary = 'Live provider evaluation did not produce a report.'
+          else:
+              data = json.loads(report.read_text(encoding='utf-8'))
+              if data.get('status') == 'skipped':
+                  summary = 'Live provider evaluation skipped: ' + str(data.get('reason', 'no reason provided'))
+              else:
+                  metrics = data.get('metrics', {})
+                  summary = ('Live provider evaluation: **' + ('PASS' if data.get('passed') else 'FAIL') + '**\n\n'
+                      + '- Positive cases: ' + str(data.get('positive_count')) + '\n'
+                      + '- Negative cases: ' + str(data.get('negative_count')) + '\n'
+                      + '- Provider answer rate: ' + str(metrics.get('provider_answer_rate')) + '\n'
+                      + '- Supported citation rate: ' + str(metrics.get('supported_citation_rate')) + '\n\n'
+                      + 'Inspect the redacted artifact for per-case results. This check does not certify semantic correctness.')
+          with open(__import__('os').environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as stream:
+              stream.write('## Live provider evaluation\n\n' + summary + '\n')
+          print(summary)
+          PY
       - name: Benchmark checked-out repository
         run: PYTHONPATH=src python evals/benchmark_repository.py . --output repository_benchmark_results.json
       - name: Publish repository benchmark report
@@ -87,6 +113,12 @@ jobs:
       - name: Audit frontend dependencies
         run: npm audit --audit-level=moderate
       - run: npm run build
+      - name: Install Playwright for browser smoke tests
+        run: npm install --no-save --ignore-scripts @playwright/test
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run dashboard browser tests
+        run: npx playwright test
 
   docker-build:
     runs-on: ubuntu-latest
