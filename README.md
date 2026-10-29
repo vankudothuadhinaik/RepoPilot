@@ -121,7 +121,7 @@ See [`docs/mcp-setup.md`](docs/mcp-setup.md) and [`docs/llm-providers.md`](docs/
 
 ## Security and privacy
 
-Read [`SECURITY.md`](SECURITY.md) and [`docs/threat-model.md`](docs/threat-model.md). Repository content is untrusted input. This MVP does not execute shell commands or apply patches. The API has no authentication; use loopback only. Common secret-bearing paths are excluded, but users must review exclusions before indexing sensitive repositories.
+Read [`SECURITY.md`](SECURITY.md) and [`docs/threat-model.md`](docs/threat-model.md). Repository content is untrusted input. This MVP does not execute shell commands or apply patches. The API supports optional bearer-token protection; the container requires a token and Compose binds to loopback. This shared token is not a substitute for identity, roles, TLS, or a security review. Common secret-bearing paths are excluded, but users must review exclusions before indexing sensitive repositories.
 
 ## Architecture
 
