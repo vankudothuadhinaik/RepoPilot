@@ -85,3 +85,20 @@ PYTHONPATH=src python evals/run_multirepo_ground_truth.py --root . --output mult
 The versioned dataset `evals/datasets/ground_truth_multirepo.json` contains 41 cases (31 positive expected-source-range cases and 10 unsupported queries) across RepoPilot and pinned source snapshots from DataPulse-Analytics, HealthStream-ETL, and low-latency-matching-engine. The snapshot commit IDs and upstream URLs are recorded in the dataset and copied into the report. The evaluator registers each corpus separately, excludes the dataset and fixture directory from the RepoPilot corpus, checks source-line snippets against the indexed snapshot, and reports Recall@1/5, MRR@5, citation-range validity, optional symbol-range accuracy, unsupported-query abstention, category breakdowns, and per-case outcomes. CI publishes the JSON report for 30 days.
 
 **Review status:** this is a maintainer-authored evaluation set with source-range checks; the dataset explicitly records that independent second-person review is still pending. Do not call it independently reviewed until another reviewer verifies the questions and expected ranges. It also does not prove semantic entailment, represent all codebases, or replace a live-provider evaluation. The offline evaluator calls no external LLM provider and does not need API credentials.
+
+
+## Pinned multi-repository performance matrix
+
+CI also benchmarks the three external source snapshots with the same local indexing and fixed-query methodology:
+
+```bash
+PYTHONPATH=src python evals/benchmark_matrix.py \
+  evals/corpora/datapulse evals/corpora/healthstream evals/corpora/matching-engine \
+  --redact-paths \
+  --source-revision datapulse=d2e80f7e737823bd349de76b421cdbf7d3a352d1 \
+  --source-revision healthstream=c276139ca273be09c6f177b4a25b420766cade16 \
+  --source-revision matching-engine=fdda1c07e75f7ab87b33a74a60a5eb04e99ac7b1 \
+  --output multi_repository_benchmark_matrix.json
+```
+
+The report records the pinned upstream source revision for each snapshot, file count/bytes, first and unchanged incremental scan/persistence durations, fixed-query median/p95 latency, database size, scan errors, and Python-tracked peak allocations. CI publishes the path-redacted JSON artifact for 30 days. These are small, selected repository snapshots measured on the CI runner; timings are environment-dependent and do not establish performance across all repository sizes.
