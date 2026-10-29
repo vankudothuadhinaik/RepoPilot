@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from evals.run_multirepo_ground_truth import _citation_matches_source, _query
+from evals.multirepo_corpus import _citation_matches_source, _query
 
 
 def test_multirepo_dataset_has_required_coverage_and_pinned_sources():
@@ -46,7 +46,7 @@ def test_citation_range_checks_exact_source_lines_and_rejects_traversal(tmp_path
 
 
 def test_clean_root_excludes_all_ground_truth_and_fixture_data(tmp_path):
-    from evals.run_multirepo_ground_truth import _clean_root
+    from evals.multirepo_corpus import _clean_root
 
     root = tmp_path / "checkout"
     (root / "evals" / "datasets").mkdir(parents=True)
@@ -69,7 +69,7 @@ def test_clean_root_excludes_all_ground_truth_and_fixture_data(tmp_path):
 def test_materialize_snapshot_checks_revision_and_rejects_traversal(tmp_path):
     import json
 
-    from evals.run_multirepo_ground_truth import _materialize_snapshot
+    from evals.multirepo_corpus import _materialize_snapshot
 
     source_root = tmp_path / "snapshot"
     source_root.mkdir()
