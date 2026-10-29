@@ -87,6 +87,12 @@ jobs:
       - name: Audit frontend dependencies
         run: npm audit --audit-level=moderate
       - run: npm run build
+      - name: Install Playwright for browser smoke tests
+        run: npm install --no-save --ignore-scripts @playwright/test
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run dashboard browser tests
+        run: npx playwright test
 
   docker-build:
     runs-on: ubuntu-latest
