@@ -15,7 +15,7 @@ Repository source, local index database, engineering notes, provider credentials
 - Prompt injection: this baseline does not ask an LLM to follow repository instructions; any future LLM integration must keep retrieved text as untrusted evidence.
 - Unsafe execution: no shell execution or patch application is implemented.
 - Network exposure: API defaults to loopback in CLI and Compose binds to 127.0.0.1.
-- Unauthorized API access: no auth is implemented; do not expose this MVP to untrusted networks.
+- Unauthorized API access: when `REP_PILOT_API_TOKEN` is configured, API routes require a constant-time-checked bearer token; the CLI refuses non-loopback binds without a token. This shared-token guard is not a user identity/role system and does not replace a reverse proxy, TLS, rate limits, or a security review.
 - Resource exhaustion: files are capped at 1 MB; there are still no comprehensive request/index rate limits.
 
 ## Residual risk
