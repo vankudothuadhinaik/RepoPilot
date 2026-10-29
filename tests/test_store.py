@@ -34,12 +34,12 @@ def test_reindex_reports_file_delta_and_preserves_unchanged_files(fixture_repo, 
     repo_id = first["id"]
 
     (fixture_repo / "app.py").write_text(
-        "def replacement():\\n    return 'changed'\\n",
+        "def replacement():\n    return 'changed'\n",
         encoding="utf-8",
     )
     (fixture_repo / "settings.py").unlink()
     (fixture_repo / "new_module.py").write_text(
-        "def fresh_symbol():\\n    return True\\n",
+        "def fresh_symbol():\n    return True\n",
         encoding="utf-8",
     )
 
