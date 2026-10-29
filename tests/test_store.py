@@ -94,3 +94,33 @@ def test_parser_version_is_persisted_and_exposed(fixture_repo, store):
     repo = store.index(index_repository(fixture_repo))
     assert repo["parser_version"] == PARSER_VERSION
     assert store.parser_version_for_root(fixture_repo) == PARSER_VERSION
+
+
+
+def test_parser_upgrade_rebuilds_derived_symbols_and_imports(fixture_repo, store):
+    data = index_repository(fixture_repo)
+    repo = store.index(data)
+    repo_id = repo["id"]
+    with store.connect() as db:
+        before_symbols = db.execute(
+            "SELECT COUNT(*) FROM symbols WHERE repository_id=?", (repo_id,)
+        ).fetchone()[0]
+    assert before_symbols > 0
+
+    # Same file hashes, newer parser version and regenerated output.
+    data["parser_version"] = "future-parser-test"
+    data["symbols"] = [
+        {
+            "name": "new_parser_symbol", "qualified_name": "new_parser_symbol",
+            "kind": "function", "path": "app.py", "start_line": 1, "end_line": 1,
+            "signature": "new_parser_symbol()",
+        }
+    ]
+    data["imports"] = [
+        {"source": "app.py", "target": "new_module", "kind": "import"}
+    ]
+    updated = store.index(data)
+    assert updated["parser_version"] == "future-parser-test"
+    assert any(item["name"] == "new_parser_symbol" for item in store.symbols(repo_id))
+    assert not any(item["name"] == "greet" for item in store.symbols(repo_id))
+    assert any(edge["target"] == "new_module" for edge in store.graph(repo_id)["edges"])
