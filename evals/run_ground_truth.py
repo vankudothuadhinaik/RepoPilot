@@ -6,8 +6,8 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 from typing import Any
+from unittest.mock import patch
 
 
 def _citation_matches_source(item: dict[str, Any], root: Path) -> bool:
