@@ -14,7 +14,9 @@ The benchmark reports Recall@5, Recall@10, MRR@10, and abstention accuracy, plus
 
 **Interpretation boundary:** the fixture content and queries are intentionally curated to verify deterministic lexical retrieval behavior. This is not a representative real-world corpus, a semantic retrieval benchmark, an LLM answer-quality evaluation, or a security certification. Do not present these metrics as production accuracy.
 
-Before a release claim, add a reviewed and independently authored question set from multiple real-but-permitted repositories and measure:
+CI also runs `PYTHONPATH=src python evals/benchmark_repository.py .` against the checked-out RepoPilot repository. It records file count/bytes, scan and persistence durations, unchanged-tree incremental timings, fixed-query search median/p95, database size, and Python-tracked peak allocations. The JSON report is uploaded as `repopilot-repository-benchmark-<sha>` for 30 days. This provides a reproducible baseline for this repository on the CI runner, not a multi-size or representative external-corpus benchmark. Run it on another repository with `PYTHONPATH=src python evals/benchmark_repository.py /path/to/repo --output report.json`.
+
+Before a broader release claim, add a reviewed and independently authored question set from multiple real-but-permitted repositories and measure:
 - Recall@k and MRR for evidence retrieval.
 - Citation/path correctness and citation line validity.
 - Unsupported claim and abstention rates for each configured LLM provider.
