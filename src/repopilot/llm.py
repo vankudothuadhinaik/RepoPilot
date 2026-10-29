@@ -85,7 +85,9 @@ def generate_grounded_answer(question: str, evidence: list[dict[str, Any]]) -> s
     )
     try:
         with urlopen(request, timeout=12) as response:
-            result = json.loads(_read_bounded(response).decode("utf-8"))
+            result = json.loads(response.read(MAX_RESPONSE_BYTES + 1).decode("utf-8"))
+            if len(json.dumps(result).encode("utf-8")) > MAX_RESPONSE_BYTES:
+                return None
         content = result["choices"][0]["message"]["content"]
         if not isinstance(content, str):
             return None
