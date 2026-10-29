@@ -98,7 +98,27 @@ def generate_grounded_answer(question: str, evidence: list[dict[str, Any]]) -> s
             return None
         answer = content.strip()
     except HTTPError as exc:
-        _LOGGER.warning('Grounded answer provider returned HTTP status %s.', exc.code)
+        # Read only machine-readable error identifiers; never log the provider message/body.
+        error_code = "unknown"
+        error_type = "unknown"
+        try:
+            error_payload = json.loads(exc.read(MAX_RESPONSE_BYTES).decode("utf-8"))
+            provider_error = error_payload.get("error", {})
+            if isinstance(provider_error, dict):
+                candidate_code = provider_error.get("code")
+                candidate_type = provider_error.get("type")
+                if isinstance(candidate_code, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", candidate_code):
+                    error_code = candidate_code
+                if isinstance(candidate_type, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", candidate_type):
+                    error_type = candidate_type
+        except (OSError, ValueError, TypeError, AttributeError):
+            pass
+        _LOGGER.warning(
+            "Grounded answer provider returned HTTP status %s (code=%s, type=%s).",
+            exc.code,
+            error_code,
+            error_type,
+        )
         return None
     except URLError as exc:
         _LOGGER.warning('Grounded answer provider connection failed (%s).', type(exc.reason).__name__)
