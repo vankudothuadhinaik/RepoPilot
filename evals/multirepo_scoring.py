@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import platform
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -14,13 +15,25 @@ except ModuleNotFoundError:
     from multirepo_corpus import _citation_matches_source, _query
 
 
+@dataclass(frozen=True)
+class QuestionContext:
+    client: Any
+    repo_id: str
+    corpus_root: Path
+    headers: dict[str, str]
+
+
 def _run_retrieval_query(
-    client: Any, repo_id: str, query: str, headers: dict[str, str]
+    context: QuestionContext, query: str
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     payload = {"question": query, "limit": 5}
-    search = client.post(f"/api/repos/{repo_id}/search", json=payload, headers=headers)
+    search = context.client.post(
+        f"/api/repos/{context.repo_id}/search", json=payload, headers=context.headers
+    )
     with patch("repopilot.api.generate_grounded_answer", return_value=None):
-        ask = client.post(f"/api/repos/{repo_id}/ask", json=payload, headers=headers)
+        ask = context.client.post(
+            f"/api/repos/{context.repo_id}/ask", json=payload, headers=context.headers
+        )
     search.raise_for_status()
     ask.raise_for_status()
     return search.json()["results"], ask.json()
@@ -60,13 +73,15 @@ def _expected_path_rank(results: list[dict[str, Any]], expected_path: str) -> in
 
 
 def _expected_symbol_valid(
-    client: Any, question: dict[str, Any], repo_id: str, headers: dict[str, str]
+    context: QuestionContext, question: dict[str, Any]
 ) -> bool | None:
     symbol = question.get("expected_symbol")
     if not symbol:
         return None
-    response = client.get(
-        f"/api/repos/{repo_id}/symbols", params={"q": symbol}, headers=headers
+    response = context.client.get(
+        f"/api/repos/{context.repo_id}/symbols",
+        params={"q": symbol},
+        headers=context.headers,
     )
     response.raise_for_status()
     return any(
@@ -79,17 +94,14 @@ def _expected_symbol_valid(
 
 
 def _score_supported_question(
-    client: Any,
     question: dict[str, Any],
-    repo_id: str,
-    corpus_root: Path,
-    headers: dict[str, str],
+    context: QuestionContext,
     results: list[dict[str, Any]],
     answer: dict[str, Any],
 ) -> dict[str, Any]:
     expected_path = question["expected_path"]
     expected_start, expected_end = question["expected_start_line"], question["expected_end_line"]
-    checks = _evidence_checks(answer, corpus_root)
+    checks = _evidence_checks(answer, context.corpus_root)
     citation_ok = any(
         item["path"] == expected_path
         and isinstance(item["start_line"], int)
@@ -100,7 +112,7 @@ def _score_supported_question(
         for item in checks
     )
     rank = _expected_path_rank(results, expected_path)
-    symbol_ok = _expected_symbol_valid(client, question, repo_id, headers)
+    symbol_ok = _expected_symbol_valid(context, question)
     return {
         "id": question["id"], "repository": question["repository"],
         "category": str(question.get("category", "uncategorized")),
@@ -113,18 +125,12 @@ def _score_supported_question(
 
 
 def _evaluate_question(
-    client: Any,
-    question: dict[str, Any],
-    repo_id: str,
-    corpus_root: Path,
-    headers: dict[str, str],
+    question: dict[str, Any], context: QuestionContext
 ) -> dict[str, Any]:
-    results, answer = _run_retrieval_query(client, repo_id, _query(question), headers)
+    results, answer = _run_retrieval_query(context, _query(question))
     if not question.get("expected_path"):
         return _score_unsupported_question(question, answer)
-    return _score_supported_question(
-        client, question, repo_id, corpus_root, headers, results, answer
-    )
+    return _score_supported_question(question, context, results, answer)
 
 
 def _retrieval_metrics(positive_results: list[dict[str, Any]]) -> dict[str, Any]:
