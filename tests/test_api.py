@@ -131,3 +131,25 @@ def test_memory_status_and_search_filters_are_validated(client, fixture_repo, au
         headers=auth_headers,
     )
     assert invalid_language.status_code == 422
+
+def test_ask_does_not_cite_unrelated_file_prefix(client, fixture_repo, auth_headers, monkeypatch):
+    import repopilot.api as api
+
+    registered = client.post("/api/repos", json={"path": str(fixture_repo)}, headers=auth_headers)
+    repo_id = registered.json()["id"]
+    monkeypatch.setattr(
+        api.store,
+        "search",
+        lambda *args, **kwargs: [{"path": "README.md", "language": "markdown", "rank": 1}],
+    )
+
+    response = client.post(
+        f"/api/repos/{repo_id}/ask",
+        json={"question": "ZXQNONEXISTENTTOKEN", "limit": 5},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["evidence"] == []
+    assert body["abstained"] is True
