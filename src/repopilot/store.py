@@ -309,7 +309,10 @@ class Store:
                 FROM file_search WHERE {" AND ".join(clauses)}
                 ORDER BY rank LIMIT ?
             """
-            params.append(limit)
+            # Retrieve a bounded candidate pool before path-aware reranking, so a
+            # high-BM25 documentation hit cannot hide a query-named source file
+            # merely because the caller requested a small final result count.
+            params.append(min(max(limit * 5, 50), 200))
             try:
                 rows = db.execute(sql, params).fetchall()
             except sqlite3.OperationalError:
@@ -323,7 +326,9 @@ class Store:
                 path_tokens = set(re.findall(r"[A-Za-z0-9]+", item["path"].casefold()))
                 return sum(token in path_tokens for token in tokens)
 
-            return sorted(results, key=lambda item: (-path_score(item), item["rank"], item["path"]))
+            return sorted(
+                results, key=lambda item: (-path_score(item), item["rank"], item["path"])
+            )[:limit]
 
     def _fallback_search(self, db: sqlite3.Connection, repo_id: str, query: str, limit: int,
                          language: str | None, path_prefix: str | None) -> list[dict[str, Any]]:
