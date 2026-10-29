@@ -208,12 +208,13 @@ def index_repository(
                 # partial so persistence does not interpret them as deletions.
                 try:
                     stat = path.stat()
-                    if not path.is_symlink() and stat.st_size <= 1_000_000:
+                    if not path.is_symlink():
                         rel = path.relative_to(root).as_posix()
-                        errors.append({
-                            "path": rel,
-                            "error": "File could not be safely read; previous indexed content will be preserved.",
-                        })
+                        reason = (
+                            "File exceeds the 1 MB indexing limit or could not be safely read; "
+                            "previous indexed content will be preserved."
+                        )
+                        errors.append({"path": rel, "error": reason})
                 except (OSError, ValueError):
                     errors.append({
                         "path": str(path),
