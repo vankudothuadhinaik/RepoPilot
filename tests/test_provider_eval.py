@@ -44,3 +44,24 @@ def test_live_evaluation_skips_without_provider_key(monkeypatch, tmp_path):
     result = evaluate(tmp_path)
     assert result["status"] == "skipped"
     assert "no provider score" in result["reason"]
+
+
+def test_provider_diagnostic_capture_records_only_safe_error_categories(caplog):
+    import logging
+
+    from evals.run_provider_eval import _ProviderDiagnosticCapture
+
+    handler = _ProviderDiagnosticCapture()
+    logger = logging.getLogger("provider-eval-test")
+    logger.addHandler(handler)
+    try:
+        logger.warning("Grounded answer provider timed out.")
+        logger.warning(
+            "Grounded answer provider returned HTTP status 429 "
+            "(code=credit_balance_exhausted, type=insufficient_quota)."
+        )
+    finally:
+        logger.removeHandler(handler)
+
+    assert handler.codes == ["provider_timeout", "provider_http_error"]
+    assert "secret" not in caplog.text.lower()
