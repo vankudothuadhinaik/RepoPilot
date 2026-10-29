@@ -222,7 +222,7 @@ def _build_metrics(
     return {
         "positive_queries": positives,
         "negative_queries": negatives,
-        "symbol_range_cases": len(symbol_results),
+        "symbol_range_cases": len(groups.symbol_results),
         **_retrieval_metrics(groups.positive_results),
         **_evidence_metrics(groups.positive_results, groups.symbol_results),
         **_abstention_metrics(groups.negative_results),
