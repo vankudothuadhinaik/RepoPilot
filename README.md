@@ -47,7 +47,7 @@ CI publishes the synthetic retrieval report as `repopilot-retrieval-benchmark-py
 PYTHONPATH=src python evals/run_eval.py
 ```
 
-Run a local repository performance baseline with `PYTHONPATH=src python evals/benchmark_repository.py /path/to/repo --output report.json`. See [docs/evaluation.md](docs/evaluation.md) for methodology and limitations. No benchmark score is claimed here because scores should be read from the report generated for a specific commit.
+Run a local repository performance baseline with `PYTHONPATH=src python evals/benchmark_repository.py /path/to/repo --output report.json`, or compare multiple authorized local repositories with `PYTHONPATH=src python evals/benchmark_matrix.py /path/to/repo-small /path/to/repo-medium /path/to/repo-large --output benchmark-matrix.json`. See [docs/evaluation.md](docs/evaluation.md) for methodology and limitations. No benchmark score is claimed here because scores should be read from the report generated for a specific commit.
 
 ## Architecture at a glance
 
