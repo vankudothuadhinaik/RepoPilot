@@ -7,12 +7,12 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 try:
     from evals.multirepo_corpus import _materialize_repo_revision
 except ModuleNotFoundError:
     from multirepo_corpus import _materialize_repo_revision
-from unittest.mock import patch
 
 
 def _citation_matches_source(item: dict[str, Any], root: Path) -> bool:
