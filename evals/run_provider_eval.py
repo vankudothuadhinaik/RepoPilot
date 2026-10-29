@@ -185,213 +185,215 @@ def evaluate(root: Path) -> dict[str, Any]:
     questions = dataset["questions"]
     previous_token = os.environ.get("REP_PILOT_API_TOKEN")
     previous_data_dir = os.environ.get("REP_PILOT_DATA_DIR")
-    with tempfile.TemporaryDirectory(prefix="repopilot-provider-eval-") as data_dir:
-        os.environ["REP_PILOT_API_TOKEN"] = "provider-evaluation-local-token"
-        os.environ["REP_PILOT_DATA_DIR"] = data_dir
-        corpus_root = _prepare_provider_corpus(root, Path(data_dir) / "source-corpus")
-        from fastapi.testclient import TestClient
+    try:
+        with tempfile.TemporaryDirectory(prefix="repopilot-provider-eval-") as data_dir:
+            os.environ["REP_PILOT_API_TOKEN"] = "provider-evaluation-local-token"
+            os.environ["REP_PILOT_DATA_DIR"] = data_dir
+            corpus_root = _prepare_provider_corpus(root, Path(data_dir) / "source-corpus")
+            from fastapi.testclient import TestClient
 
-        from repopilot.api import app
+            from repopilot.api import app
 
-        client = TestClient(app)
-        headers = {"Authorization": "Bearer provider-evaluation-local-token"}
-        registration = client.post(
-            "/api/repos", json={"path": str(corpus_root)}, headers=headers
-        )
-        registration.raise_for_status()
-        repo_id = registration.json()["id"]
-        results, durations = [], []
-        provider_logger = logging.getLogger("repopilot.llm")
-        for question in questions:
-            query = question.get("query") or "".join(
-                chr(value) for value in question.get("query_codepoints", [])
+            client = TestClient(app)
+            headers = {"Authorization": "Bearer provider-evaluation-local-token"}
+            registration = client.post(
+                "/api/repos", json={"path": str(corpus_root)}, headers=headers
             )
-            diagnostic = _ProviderDiagnosticCapture()
-            provider_logger.addHandler(diagnostic)
-            started = time.perf_counter()
-            try:
-                response = client.post(
-                    f"/api/repos/{repo_id}/ask",
-                    json={"question": query, "limit": 5},
-                    headers=headers,
+            registration.raise_for_status()
+            repo_id = registration.json()["id"]
+            results, durations = [], []
+            provider_logger = logging.getLogger("repopilot.llm")
+            for question in questions:
+                query = question.get("query") or "".join(
+                    chr(value) for value in question.get("query_codepoints", [])
                 )
-                durations.append((time.perf_counter() - started) * 1000)
-                if response.status_code >= 400:
-                    scored = score_case(
-                        question,
-                        {"answer": "", "abstained": False, "evidence": [], "mode": "error"},
-                        corpus_root,
-                    )
-                    scored["evaluation_error"] = "api_http_error"
-                    scored["http_status"] = response.status_code
-                    results.append(scored)
-                    continue
+                diagnostic = _ProviderDiagnosticCapture()
+                provider_logger.addHandler(diagnostic)
+                started = time.perf_counter()
                 try:
-                    payload = response.json()
-                except ValueError:
-                    payload = None
-                if not isinstance(payload, dict) or not all(
-                    key in payload for key in ("answer", "abstained", "evidence")
-                ):
-                    scored = score_case(
-                        question,
-                        {"answer": "", "abstained": False, "evidence": [], "mode": "error"},
-                        corpus_root,
-                    )
-                    scored["evaluation_error"] = "malformed_api_response"
-                    results.append(scored)
-                    continue
-                score_question = question
-                if question.get("expected_symbol"):
-                    symbol_response = client.get(
-                        f"/api/repos/{repo_id}/symbols",
-                        params={"q": question["expected_symbol"]},
+                    response = client.post(
+                        f"/api/repos/{repo_id}/ask",
+                        json={"question": query, "limit": 5},
                         headers=headers,
                     )
-                    symbol_response.raise_for_status()
-                    symbol_valid = any(
-                        item["path"] == question["expected_path"]
-                        and item["name"] == question["expected_symbol"]
-                        and item["start_line"] == question["expected_start_line"]
-                        and item["end_line"] == question["expected_end_line"]
-                        for item in symbol_response.json()
+                    durations.append((time.perf_counter() - started) * 1000)
+                    if response.status_code >= 400:
+                        scored = score_case(
+                            question,
+                            {"answer": "", "abstained": False, "evidence": [], "mode": "error"},
+                            corpus_root,
+                        )
+                        scored["evaluation_error"] = "api_http_error"
+                        scored["http_status"] = response.status_code
+                        results.append(scored)
+                        continue
+                    try:
+                        payload = response.json()
+                    except ValueError:
+                        payload = None
+                    if not isinstance(payload, dict) or not all(
+                        key in payload for key in ("answer", "abstained", "evidence")
+                    ):
+                        scored = score_case(
+                            question,
+                            {"answer": "", "abstained": False, "evidence": [], "mode": "error"},
+                            corpus_root,
+                        )
+                        scored["evaluation_error"] = "malformed_api_response"
+                        results.append(scored)
+                        continue
+                    score_question = question
+                    if question.get("expected_symbol"):
+                        symbol_response = client.get(
+                            f"/api/repos/{repo_id}/symbols",
+                            params={"q": question["expected_symbol"]},
+                            headers=headers,
+                        )
+                        symbol_response.raise_for_status()
+                        symbol_valid = any(
+                            item["path"] == question["expected_path"]
+                            and item["name"] == question["expected_symbol"]
+                            and item["start_line"] == question["expected_start_line"]
+                            and item["end_line"] == question["expected_end_line"]
+                            for item in symbol_response.json()
+                        )
+                        score_question = {**question, "symbol_range_valid": symbol_valid}
+                    scored = score_case(score_question, payload, corpus_root)
+                    if diagnostic.codes:
+                        scored["provider_error"] = diagnostic.codes[-1]
+                    results.append(scored)
+                except Exception as exc:
+                    # Exception messages can contain request URLs or provider response data.
+                    # Store only a safe class/category; never serialize the exception text.
+                    error_code = "request_timeout" if "timeout" in type(exc).__name__.lower() else "request_error"
+                    scored = score_case(
+                        question,
+                        {"answer": "", "abstained": False, "evidence": [], "mode": "error"},
+                        corpus_root,
                     )
-                    score_question = {**question, "symbol_range_valid": symbol_valid}
-                scored = score_case(score_question, payload, corpus_root)
-                if diagnostic.codes:
-                    scored["provider_error"] = diagnostic.codes[-1]
-                results.append(scored)
-            except Exception as exc:
-                # Exception messages can contain request URLs or provider response data.
-                # Store only a safe class/category; never serialize the exception text.
-                error_code = "request_timeout" if "timeout" in type(exc).__name__.lower() else "request_error"
-                scored = score_case(
-                    question,
-                    {"answer": "", "abstained": False, "evidence": [], "mode": "error"},
-                    corpus_root,
-                )
-                scored["evaluation_error"] = error_code
-                results.append(scored)
-            finally:
-                provider_logger.removeHandler(diagnostic)
-        positives = [item for item in results if "expected_path_found" in item]
-        negatives = [item for item in results if "unsupported_question_abstained" in item]
-        error_codes = [
-            item.get("evaluation_error") or item.get("provider_error")
-            for item in results
-            if item.get("evaluation_error") or item.get("provider_error")
-        ]
-        metrics = {
-            "evaluation_error_count": sum(bool(item.get("evaluation_error")) for item in results),
-            "provider_error_count": sum(bool(item.get("provider_error")) for item in results),
-            "timeout_count": sum(
-                item.get("evaluation_error") == "request_timeout"
-                or item.get("provider_error") == "provider_timeout"
+                    scored["evaluation_error"] = error_code
+                    results.append(scored)
+                finally:
+                    provider_logger.removeHandler(diagnostic)
+            positives = [item for item in results if "expected_path_found" in item]
+            negatives = [item for item in results if "unsupported_question_abstained" in item]
+            error_codes = [
+                item.get("evaluation_error") or item.get("provider_error")
                 for item in results
-            ),
-            "malformed_response_count": sum(
-                item.get("evaluation_error") == "malformed_api_response"
-                or item.get("provider_error") == "malformed_provider_response"
-                for item in results
-            ),
-            "error_categories": {code: error_codes.count(code) for code in sorted(set(error_codes))},
-            "expected_path_rate": (
-                round(sum(x["expected_path_found"] for x in positives) / len(positives), 4)
-                if positives else None
-            ),
-            "valid_source_evidence_rate": (
-                round(sum(x["source_lines_valid"] for x in positives) / len(positives), 4)
-                if positives else None
-            ),
-            "expected_range_coverage_rate": (
-                round(sum(x["expected_range_covered"] for x in positives) / len(positives), 4)
-                if positives else None
-            ),
-            "expected_fact_anchor_validity": (
-                round(sum(x["expected_fact_anchor_valid"] for x in positives) / len(positives), 4)
-                if positives else None
-            ),
-            "symbol_range_accuracy": (
-                round(
-                    sum(bool(x["symbol_range_valid"]) for x in positives if x["symbol_range_valid"] is not None)
-                    / sum(x["symbol_range_valid"] is not None for x in positives), 4
-                ) if any(x["symbol_range_valid"] is not None for x in positives) else None
-            ),
-            "answer_quote_support_rate": (
-                round(sum(x["answer_quote_supported"] for x in positives) / len(positives), 4)
-                if positives else None
-            ),
-            "answer_citation_rate": (
-                round(sum(x["answer_has_citations"] for x in positives) / len(positives), 4)
-                if positives else None
-            ),
-            "provider_answer_rate": (
-                round(sum(x["provider_answer_generated"] for x in positives) / len(positives), 4)
-                if positives else None
-            ),
-            "supported_citation_rate": (
-                round(sum(x["answer_citations_supported"] for x in positives) / len(positives), 4)
-                if positives else None
-            ),
-            "unsupported_abstention_rate": (
-                round(sum(x["unsupported_question_abstained"] for x in negatives) / len(negatives), 4)
-                if negatives else None
-            ),
-            "latency_ms_median": round(sorted(durations)[len(durations) // 2], 2) if durations else None,
-        }
-        passed = all(
-            x.get("expected_path_found", x.get("unsupported_question_abstained", False))
-            for x in results
-        )
-        passed = passed and all(x.get("provider_answer_generated", False) for x in positives)
-        passed = passed and all(
-            x.get("source_lines_valid", False)
-            and x.get("expected_range_covered", False)
-            and x.get("expected_fact_anchor_valid", False)
-            and x.get("answer_quote_supported", False)
-            and x.get("answer_citations_supported", False)
-            and x.get("symbol_range_valid", True) is not False
-            for x in positives
-        )
-        base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").strip()
-        try:
-            provider_host = urlsplit(base_url).hostname
-        except ValueError:
-            provider_host = None
-        report = {
-            "status": "completed", "mode": "live-provider",
-            "provider": {
-                "base_url_host": provider_host,
-                "model": os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip() or None,
-                "provider_version": None,
-            },
-            "dataset": "evals/datasets/ground_truth.json",
-            "dataset_version": dataset.get("version"),
-            "dataset_sha256": hashlib.sha256(dataset_bytes).hexdigest(),
-            "authoring": dataset.get("authoring"),
-            "repositories": dataset.get("repositories"),
-            "runtime": {"python": sys.version.split()[0], "platform": platform.platform()},
-            "question_count": len(questions),
-            "positive_count": len(positives), "negative_count": len(negatives),
-            "metrics": metrics, "results": results, "passed": passed,
-            "limitations": [
-                "The reviewed dataset is small and not representative of production use.",
-                "Citation/path checks do not prove generated claims are semantically entailed by cited source.",
-                "The model name and provider hostname are configuration values, not verified server-side version identifiers.",
-                "Provider credentials and raw provider response bodies are never included in the report.",
-                "Provider failures are categorized from redacted diagnostic codes; error messages and bodies are not recorded.",
-                "Latency includes local indexing/API overhead as well as provider latency."
+                if item.get("evaluation_error") or item.get("provider_error")
             ]
-        }
-    # Restore the caller's environment after a successful evaluation.
-    if previous_token is None:
-        os.environ.pop("REP_PILOT_API_TOKEN", None)
-    else:
-        os.environ["REP_PILOT_API_TOKEN"] = previous_token
-    if previous_data_dir is None:
-        os.environ.pop("REP_PILOT_DATA_DIR", None)
-    else:
-        os.environ["REP_PILOT_DATA_DIR"] = previous_data_dir
+            metrics = {
+                "evaluation_error_count": sum(bool(item.get("evaluation_error")) for item in results),
+                "provider_error_count": sum(bool(item.get("provider_error")) for item in results),
+                "timeout_count": sum(
+                    item.get("evaluation_error") == "request_timeout"
+                    or item.get("provider_error") == "provider_timeout"
+                    for item in results
+                ),
+                "malformed_response_count": sum(
+                    item.get("evaluation_error") == "malformed_api_response"
+                    or item.get("provider_error") == "malformed_provider_response"
+                    for item in results
+                ),
+                "error_categories": {code: error_codes.count(code) for code in sorted(set(error_codes))},
+                "expected_path_rate": (
+                    round(sum(x["expected_path_found"] for x in positives) / len(positives), 4)
+                    if positives else None
+                ),
+                "valid_source_evidence_rate": (
+                    round(sum(x["source_lines_valid"] for x in positives) / len(positives), 4)
+                    if positives else None
+                ),
+                "expected_range_coverage_rate": (
+                    round(sum(x["expected_range_covered"] for x in positives) / len(positives), 4)
+                    if positives else None
+                ),
+                "expected_fact_anchor_validity": (
+                    round(sum(x["expected_fact_anchor_valid"] for x in positives) / len(positives), 4)
+                    if positives else None
+                ),
+                "symbol_range_accuracy": (
+                    round(
+                        sum(bool(x["symbol_range_valid"]) for x in positives if x["symbol_range_valid"] is not None)
+                        / sum(x["symbol_range_valid"] is not None for x in positives), 4
+                    ) if any(x["symbol_range_valid"] is not None for x in positives) else None
+                ),
+                "answer_quote_support_rate": (
+                    round(sum(x["answer_quote_supported"] for x in positives) / len(positives), 4)
+                    if positives else None
+                ),
+                "answer_citation_rate": (
+                    round(sum(x["answer_has_citations"] for x in positives) / len(positives), 4)
+                    if positives else None
+                ),
+                "provider_answer_rate": (
+                    round(sum(x["provider_answer_generated"] for x in positives) / len(positives), 4)
+                    if positives else None
+                ),
+                "supported_citation_rate": (
+                    round(sum(x["answer_citations_supported"] for x in positives) / len(positives), 4)
+                    if positives else None
+                ),
+                "unsupported_abstention_rate": (
+                    round(sum(x["unsupported_question_abstained"] for x in negatives) / len(negatives), 4)
+                    if negatives else None
+                ),
+                "latency_ms_median": round(sorted(durations)[len(durations) // 2], 2) if durations else None,
+            }
+            passed = all(
+                x.get("expected_path_found", x.get("unsupported_question_abstained", False))
+                for x in results
+            )
+            passed = passed and all(x.get("provider_answer_generated", False) for x in positives)
+            passed = passed and all(
+                x.get("source_lines_valid", False)
+                and x.get("expected_range_covered", False)
+                and x.get("expected_fact_anchor_valid", False)
+                and x.get("answer_quote_supported", False)
+                and x.get("answer_citations_supported", False)
+                and x.get("symbol_range_valid", True) is not False
+                for x in positives
+            )
+            base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").strip()
+            try:
+                provider_host = urlsplit(base_url).hostname
+            except ValueError:
+                provider_host = None
+            report = {
+                "status": "completed", "mode": "live-provider",
+                "provider": {
+                    "base_url_host": provider_host,
+                    "model": os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip() or None,
+                    "provider_version": None,
+                },
+                "dataset": "evals/datasets/ground_truth.json",
+                "dataset_version": dataset.get("version"),
+                "dataset_sha256": hashlib.sha256(dataset_bytes).hexdigest(),
+                "authoring": dataset.get("authoring"),
+                "repositories": dataset.get("repositories"),
+                "runtime": {"python": sys.version.split()[0], "platform": platform.platform()},
+                "question_count": len(questions),
+                "positive_count": len(positives), "negative_count": len(negatives),
+                "metrics": metrics, "results": results, "passed": passed,
+                "limitations": [
+                    "The reviewed dataset is small and not representative of production use.",
+                    "Citation/path checks do not prove generated claims are semantically entailed by cited source.",
+                    "The model name and provider hostname are configuration values, not verified server-side version identifiers.",
+                    "Provider credentials and raw provider response bodies are never included in the report.",
+                    "Provider failures are categorized from redacted diagnostic codes; error messages and bodies are not recorded.",
+                    "Latency includes local indexing/API overhead as well as provider latency."
+                ]
+            }
+
+    finally:
+        if previous_token is None:
+            os.environ.pop("REP_PILOT_API_TOKEN", None)
+        else:
+            os.environ["REP_PILOT_API_TOKEN"] = previous_token
+        if previous_data_dir is None:
+            os.environ.pop("REP_PILOT_DATA_DIR", None)
+        else:
+            os.environ["REP_PILOT_DATA_DIR"] = previous_data_dir
     return report
 
 
