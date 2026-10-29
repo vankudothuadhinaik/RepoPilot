@@ -31,7 +31,7 @@ See [`docs/architecture.md`](docs/architecture.md).
 - Git is optional for branch/commit metadata.
 - Docker Desktop and Compose for container deployment.
 - Doppler CLI for the supported deployment workflow.
-- Node.js and npm for the dashboard.
+- Node.js 22 LTS (22.12 or newer) and npm for the dashboard; Vite 8 requires a supported Node runtime.
 
 The configured secret source is Doppler project `repopilot`, config `dev`:
 
