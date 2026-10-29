@@ -120,7 +120,6 @@ def ask_repository(repo_id: str, payload: AskRequest) -> dict[str, Any]:
         file_data = store.get_file(repo_id, item["path"])
         if not file_data:
             continue
-        lines = file_data["content"].splitlines()
         snippet = item.get("snippet", "")
         evidence.append({
             "path": item["path"], "language": item["language"],
