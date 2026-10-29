@@ -22,7 +22,7 @@ flowchart TD
 - `/ask` evidence citations include a source path, line range, content hash, and indexed commit.
 - SQLite persistence, FTS5 full-text search, symbol records, import edges, memory CRUD.
 - Python AST symbol extraction and Python import extraction.
-- Indexes are replaced atomically at the database transaction level when re-indexing.
+- Re-indexing compares content hashes, persists only added/changed file bodies and FTS entries, removes deleted paths, and refreshes symbol/import rows only for dirty paths within one SQLite transaction.
 - Local API and MCP tool access are read-only with respect to source files.
 
 ## Deliberate limits
