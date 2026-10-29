@@ -2,7 +2,7 @@
 
 **Evidence-grounded repository intelligence for developers.** Index a local codebase, search its source, discover Python symbols and imports, and preserve engineering notes—with file evidence rather than unsupported claims.
 
-> Status: early MVP starter. This repository is prepared for GitHub connection, but has not yet been run in your environment. See the feature boundaries below; do not treat planned capabilities as implemented.
+ > Status: early MVP under active development. CI now covers Python 3.11 and 3.12; production readiness still requires security, UX, and evaluation milestones. See the feature boundaries below.
 
 ## Why RepoPilot?
 
@@ -24,7 +24,7 @@ RepoPilot aims to help developers understand unfamiliar repositories, find relev
 ## Not implemented yet
 
 - Semantic embeddings or reranking.
-- LLM-generated explanations and provider adapters.
+- Semantic embeddings, reranking, and multiple provider adapters.
 - Complete Java/C++/TypeScript symbol and call-graph analysis.
 - Incremental per-file re-indexing (the current implementation replaces one repository's index).
 - Background indexing jobs.
