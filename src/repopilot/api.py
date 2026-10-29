@@ -171,7 +171,7 @@ def ask_repository(repo_id: str, payload: AskRequest) -> dict[str, Any]:
 
         def matches_term(line: str, term: str) -> bool:
             if term.isalnum() or "_" in term:
-                return re.search(r"(?<!\\w)" + re.escape(term) + r"(?!\\w)", line.casefold()) is not None
+                return re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", line.casefold()) is not None
             return term in line.casefold()
 
         line_scores = [
