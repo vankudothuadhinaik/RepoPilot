@@ -95,8 +95,12 @@ def _validate_snapshot_metadata(
 
 def _safe_snapshot_path(raw_path: str, repository_id: str) -> Path:
     relative = Path(raw_path)
-    if relative.is_absolute() or ".." in relative.parts or "\\" in raw_path:
-        raise ValueError(f"unsafe snapshot path in {repository_id!r}")
+    if relative.is_absolute():
+        raise ValueError(f"absolute snapshot path in {repository_id!r}")
+    if ".." in relative.parts:
+        raise ValueError(f"snapshot path traversal in {repository_id!r}")
+    if "\\" in raw_path:
+        raise ValueError(f"backslash snapshot path in {repository_id!r}")
     return relative
 
 
