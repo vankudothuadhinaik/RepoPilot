@@ -29,11 +29,9 @@ def is_secret_path(path: Path) -> bool:
 
 
 def _read_ignore_file(path: Path) -> list[str]:
-    """Read raw ignore lines; GitIgnoreSpec owns comments, escapes, and whitespace rules."""
-    try:
-        return path.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeError):
-        return []
+    """Read raw ignore lines without following a swapped or symlinked file."""
+    content = read_safe_text(path, root=path.parent)
+    return content.splitlines() if content is not None else []
 
 
 def _gitignore_patterns(root: Path) -> list[str]:
