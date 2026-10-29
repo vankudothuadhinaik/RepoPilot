@@ -109,7 +109,7 @@ def test_positive_case_checks_expected_fact_anchor_range_and_quoted_evidence(tmp
         "snippet": "1: def greet():\n2:     return 'hi'",
     }
     response = {
-        "answer": '"def greet(): return \'hi\'" [[src/a.py]]',
+        "answer": '"def greet():" [[src/a.py]]',
         "abstained": False,
         "evidence": [evidence],
         "mode": "llm",
