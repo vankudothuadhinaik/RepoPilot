@@ -124,3 +124,34 @@ def test_parser_upgrade_rebuilds_derived_symbols_and_imports(fixture_repo, store
     assert any(item["name"] == "new_parser_symbol" for item in store.symbols(repo_id))
     assert not any(item["name"] == "greet" for item in store.symbols(repo_id))
     assert any(edge["target"] == "new_module" for edge in store.graph(repo_id)["edges"])
+
+
+
+def test_partial_index_scan_does_not_delete_unseen_files_or_advance_parser_version(fixture_repo, store):
+    initial = index_repository(fixture_repo)
+    repo = store.index(initial)
+    repo_id = repo["id"]
+    previous_version = repo["parser_version"]
+    previous_files = {item["path"] for item in initial["files"]}
+    assert "README.md" in previous_files
+
+    partial = {
+        **initial,
+        "parser_version": "parser-next",
+        "files": [item for item in initial["files"] if item["path"] != "README.md"],
+        "symbols": [],
+        "imports": [],
+        "errors": [{"path": "README.md", "error": "transient read error"}],
+    }
+    result = store.index(partial)
+    assert result["status"] == "partial"
+    assert result["parser_version"] == previous_version
+    assert store.get_file(repo_id, "README.md") is not None
+    assert result["file_count"] == len(previous_files)
+    with store.connect() as db:
+        outcome = db.execute(
+            "SELECT outcome FROM audit_events WHERE repository_id=? AND action='index_repository' "
+            "ORDER BY created_at DESC LIMIT 1",
+            (repo_id,),
+        ).fetchone()["outcome"]
+    assert outcome == "partial"
