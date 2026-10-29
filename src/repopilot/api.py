@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import hmac
 import json
+import os
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from repopilot.indexer import index_repository
@@ -17,6 +20,22 @@ app = FastAPI(
     description="Local-first, evidence-grounded repository intelligence API.",
 )
 store = Store()
+
+@app.middleware("http")
+async def optional_api_token_guard(request: Request, call_next):
+    """Require a bearer token for API routes when one is configured."""
+    expected = os.getenv("REP_PILOT_API_TOKEN", "").strip()
+    if expected and request.url.path.startswith("/api/"):
+        authorization = request.headers.get("authorization", "")
+        scheme, _, supplied = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not supplied or not hmac.compare_digest(supplied, expected):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Missing or invalid bearer token"},
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    return await call_next(request)
+
 
 
 class RegisterRepository(BaseModel):

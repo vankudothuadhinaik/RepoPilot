@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
+import os
 
 import uvicorn
 
@@ -31,6 +33,15 @@ def main() -> None:
     elif args.command == "repos":
         print(json.dumps(store.list_repositories(), indent=2))
     elif args.command == "serve":
+        try:
+            loopback = args.host.lower() == "localhost" or ipaddress.ip_address(args.host).is_loopback
+        except ValueError:
+            loopback = False
+        if not loopback and not os.getenv("REP_PILOT_API_TOKEN", "").strip():
+            parser.error(
+                "refusing non-loopback bind without REP_PILOT_API_TOKEN; "
+                "set a strong token or use --host 127.0.0.1"
+            )
         uvicorn.run("repopilot.api:app", host=args.host, port=args.port, reload=False)
 
 
