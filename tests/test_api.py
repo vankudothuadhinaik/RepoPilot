@@ -73,3 +73,37 @@ def test_ask_empty_file_and_no_keyword_match_have_bounded_citations(client, fixt
         assert citation["start_line"] >= 1
         assert citation["end_line"] >= citation["start_line"]
         assert len(citation["snippet"].splitlines()) <= 12
+
+
+
+def test_every_api_route_requires_authentication(client, fixture_repo):
+    repo_response = client.post(
+        "/api/repos", json={"path": str(fixture_repo)},
+        headers={"Authorization": "Bearer test-api-token"},
+    )
+    repo_id = repo_response.json()["id"]
+    memory_response = client.post(
+        f"/api/repos/{repo_id}/memories",
+        json={"type": "note", "summary": "temporary"},
+        headers={"Authorization": "Bearer test-api-token"},
+    )
+    memory_id = memory_response.json()["id"]
+    requests = [
+        ("GET", "/api/repos", None),
+        ("POST", "/api/repos", {"path": str(fixture_repo)}),
+        ("GET", f"/api/repos/{repo_id}", None),
+        ("POST", f"/api/repos/{repo_id}/index", None),
+        ("POST", f"/api/repos/{repo_id}/search", {"question": "greet"}),
+        ("POST", f"/api/repos/{repo_id}/ask", {"question": "greet"}),
+        ("GET", f"/api/repos/{repo_id}/symbols", None),
+        ("GET", f"/api/repos/{repo_id}/graph", None),
+        ("GET", f"/api/repos/{repo_id}/files/README.md", None),
+        ("GET", f"/api/repos/{repo_id}/memories", None),
+        ("POST", f"/api/repos/{repo_id}/memories", {"type": "note", "summary": "x"}),
+        ("PATCH", f"/api/memories/{memory_id}", {"status": "verified"}),
+        ("DELETE", f"/api/memories/{memory_id}", None),
+        ("DELETE", f"/api/repos/{repo_id}", None),
+    ]
+    for method, url, body in requests:
+        response = client.request(method, url, json=body)
+        assert response.status_code == 401, f"{method} {url} returned {response.status_code}"
