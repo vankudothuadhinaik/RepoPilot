@@ -40,7 +40,7 @@ def score_case(question: dict[str, Any], response: dict[str, Any], root: Path) -
         return {
             "id": question["id"],
             "expected_path_found": any(item.get("path") == expected_path for item in evidence),
-            "source_lines_valid": bool(valid_evidence),
+            "source_lines_valid": any(item.get("path") == expected_path for item in valid_evidence),
             "answer_has_citations": bool(cited_paths),
             "answer_citations_supported": bool(cited_paths) and set(cited_paths).issubset(
                 {item.get("path") for item in evidence}),
@@ -48,7 +48,7 @@ def score_case(question: dict[str, Any], response: dict[str, Any], root: Path) -
         }
     return {
         "id": question["id"],
-        "unsupported_question_abstained": bool(response.get("abstained")) and not evidence and not answer.strip(),
+        "unsupported_question_abstained": bool(response.get("abstained")) and not evidence and not citation_paths(answer),
         "evidence_count": len(evidence),
         "answer_has_citations": bool(cited_paths),
     }
