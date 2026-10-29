@@ -14,7 +14,8 @@ Do not publish exploit details in a public issue. Contact the repository owner p
 - Common secret files, generated folders, binaries, symlinks, and oversized files are excluded by default.
 - Repository text is treated as data, not trusted instructions.
 - This MVP does not execute shell commands or apply code patches.
-- The API has no authentication. Bind it to loopback for local use; do not expose it to the public internet without authentication, authorization, rate limits, and a reviewed deployment design.
+- The HTTP API supports an optional shared bearer token via `REP_PILOT_API_TOKEN`; the CLI refuses non-loopback binds unless the token is configured. Docker startup requires the token and Compose binds the published port to host loopback.
+- The token is a single shared secret, not user identity, role-based authorization, or tenant isolation. Rate limiting, TLS, and a reviewed hosted deployment design remain outstanding.
 
 ## Limitations
 
