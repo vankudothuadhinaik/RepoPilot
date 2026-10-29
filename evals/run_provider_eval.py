@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import re
 import tempfile
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 from typing import Any
 
 _CITATION = re.compile(r"\[\[([^\]]+)\]\]")
@@ -89,22 +91,84 @@ def evaluate(root: Path) -> dict[str, Any]:
         registration.raise_for_status()
         repo_id = registration.json()["id"]
         results, durations = [], []
+        provider_logger = logging.getLogger("repopilot.llm")
         for question in questions:
             query = question.get("query") or "".join(
                 chr(value) for value in question.get("query_codepoints", [])
             )
+            diagnostic = _ProviderDiagnosticCapture()
+            provider_logger.addHandler(diagnostic)
             started = time.perf_counter()
-            response = client.post(
-                f"/api/repos/{repo_id}/ask",
-                json={"question": query, "limit": 5},
-                headers=headers,
-            )
-            durations.append((time.perf_counter() - started) * 1000)
-            response.raise_for_status()
-            results.append(score_case(question, response.json(), root))
+            try:
+                response = client.post(
+                    f"/api/repos/{repo_id}/ask",
+                    json={"question": query, "limit": 5},
+                    headers=headers,
+                )
+                durations.append((time.perf_counter() - started) * 1000)
+                if response.status_code >= 400:
+                    scored = score_case(
+                        question,
+                        {"answer": "", "abstained": False, "evidence": [], "mode": "error"},
+                        root,
+                    )
+                    scored["evaluation_error"] = "api_http_error"
+                    scored["http_status"] = response.status_code
+                    results.append(scored)
+                    continue
+                try:
+                    payload = response.json()
+                except ValueError:
+                    payload = None
+                if not isinstance(payload, dict) or not all(
+                    key in payload for key in ("answer", "abstained", "evidence")
+                ):
+                    scored = score_case(
+                        question,
+                        {"answer": "", "abstained": False, "evidence": [], "mode": "error"},
+                        root,
+                    )
+                    scored["evaluation_error"] = "malformed_api_response"
+                    results.append(scored)
+                    continue
+                scored = score_case(question, payload, root)
+                if diagnostic.codes:
+                    scored["provider_error"] = diagnostic.codes[-1]
+                results.append(scored)
+            except Exception as exc:
+                # Exception messages can contain request URLs or provider response data.
+                # Store only a safe class/category; never serialize the exception text.
+                error_code = "request_timeout" if "timeout" in type(exc).__name__.lower() else "request_error"
+                scored = score_case(
+                    question,
+                    {"answer": "", "abstained": False, "evidence": [], "mode": "error"},
+                    root,
+                )
+                scored["evaluation_error"] = error_code
+                results.append(scored)
+            finally:
+                provider_logger.removeHandler(diagnostic)
         positives = [item for item in results if "expected_path_found" in item]
         negatives = [item for item in results if "unsupported_question_abstained" in item]
+        error_codes = [
+            item.get("evaluation_error") or item.get("provider_error")
+            for item in results
+            if item.get("evaluation_error") or item.get("provider_error")
+        ]
         metrics = {
+            "evaluation_error_count": sum(bool(item.get("evaluation_error")) for item in results),
+            "provider_error_count": sum(bool(item.get("provider_error")) for item in results),
+            "timeout_count": sum(
+                item.get("evaluation_error") == "request_timeout"
+                or item.get("provider_error") == "provider_timeout"
+                for item in results
+            ),
+            "malformed_response_count": sum(
+                item.get("evaluation_error") == "malformed_api_response"
+                or item.get("provider_error") == "malformed_provider_response"
+                for item in results
+            ),
+            "error_categories": {code: error_codes.count(code) for code in sorted(set(error_codes))},
             "expected_path_rate": (
                 round(sum(x["expected_path_found"] for x in positives) / len(positives), 4)
                 if positives else None
@@ -140,15 +204,27 @@ def evaluate(root: Path) -> dict[str, Any]:
             x.get("source_lines_valid", True) and x.get("answer_citations_supported", True)
             for x in positives
         )
+        base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").strip()
+        try:
+            provider_host = urlsplit(base_url).hostname
+        except ValueError:
+            provider_host = None
         return {
             "status": "completed", "mode": "live-provider",
+            "provider": {
+                "base_url_host": provider_host,
+                "model": os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip() or None,
+                "provider_version": None,
+            },
             "dataset": "evals/datasets/ground_truth.json", "question_count": len(questions),
             "positive_count": len(positives), "negative_count": len(negatives),
             "metrics": metrics, "results": results, "passed": passed,
             "limitations": [
                 "The reviewed dataset is small and not representative of production use.",
                 "Citation/path checks do not prove generated claims are semantically entailed by cited source.",
-                "Provider/model identifiers and credentials are intentionally omitted.",
+                "The model name and provider hostname are configuration values, not verified server-side version identifiers.",
+                "Provider credentials and raw provider response bodies are never included in the report.",
+                "Provider failures are categorized from redacted diagnostic codes; error messages and bodies are not recorded.",
                 "Latency includes local indexing/API overhead as well as provider latency."
             ]
         }
