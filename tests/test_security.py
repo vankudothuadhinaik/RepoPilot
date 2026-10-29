@@ -77,3 +77,24 @@ def test_safe_read_accepts_regular_bounded_file(fixture_repo):
     target = fixture_repo / "safe.py"
     target.write_text("def safe_function(): return 1\n", encoding="utf-8")
     assert read_safe_text(target, root=fixture_repo) == "def safe_function(): return 1\n"
+
+def test_gitignore_directory_patterns_and_case_sensitivity(fixture_repo):
+    (fixture_repo / ".gitignore").write_text("logs/\\n*.log\\n", encoding="utf-8")
+    ignored_dir = fixture_repo / "logs"
+    ignored_dir.mkdir()
+    (ignored_dir / "secret.py").write_text("def hidden(): pass\\n", encoding="utf-8")
+    visible_dir = fixture_repo / "logs2"
+    visible_dir.mkdir()
+    (visible_dir / "public.py").write_text("def visible(): pass\\n", encoding="utf-8")
+    (fixture_repo / "upper.LOG").write_text("case-sensitive pattern should not match", encoding="utf-8")
+
+    indexed = index_repository(fixture_repo)
+    paths = {item["path"] for item in indexed["files"]}
+    assert "logs/secret.py" not in paths
+    assert "logs2/public.py" in paths
+    # Git ignore patterns are case-sensitive by default; .LOG is a text file here
+    # only if its extension is supported, so use an uppercase Python suffix instead.
+    (fixture_repo / "Keep.PY").write_text("def uppercase_extension(): pass\\n", encoding="utf-8")
+    indexed = index_repository(fixture_repo)
+    paths = {item["path"] for item in indexed["files"]}
+    assert "Keep.PY" in paths
