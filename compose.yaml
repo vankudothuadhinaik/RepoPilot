@@ -5,6 +5,7 @@ services:
       - "127.0.0.1:8000:8000"
     environment:
       REP_PILOT_DATA_DIR: /data
+      REP_PILOT_API_TOKEN: ${REP_PILOT_API_TOKEN:?Set REP_PILOT_API_TOKEN in your environment or .env file}
     volumes:
       - repopilot_data:/data
     read_only: true
