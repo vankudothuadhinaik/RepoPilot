@@ -26,3 +26,5 @@ jobs:
       - run: ruff check .
       - run: python -m pytest
       - run: python -m compileall -q src
+      - name: Run evaluation smoke checks
+        run: python evals/run_eval.py
