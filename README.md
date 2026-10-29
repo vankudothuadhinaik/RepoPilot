@@ -8,7 +8,7 @@ Status: **local-first MVP in active development**. Backend tests, retrieval smok
 
 RepoPilot aims to help developers understand unfamiliar repositories, find relevant code, inspect dependencies, remember engineering decisions, and investigate bugs. Its first release prioritizes a safe, testable local core over autonomous code editing.
 
-## Implemented in this starter
+## Implemented in the MVP
 
 - Local repository registration and re-indexing.
 - File filtering, common secret-file exclusions, symlink skipping, and file-size limits.
@@ -18,7 +18,7 @@ RepoPilot aims to help developers understand unfamiliar repositories, find relev
 - Search, symbols, graph, file evidence, and memory CRUD API endpoints.
 - Evidence retrieval endpoint with line-numbered snippets, source hashes, and indexed commit metadata; it explicitly does **not** pretend to generate a semantic LLM answer.
 - Optional MCP tools for repository listing, code search, symbol lookup, overview, and memory retrieval.
-- Unit/API/security regression tests, GitHub Actions CI, CodeQL workflow, Dependabot, Docker, and Compose.
+- Unit/API/security regression tests, GitHub Actions CI, Dependabot, Docker, and Compose. CodeQL analysis runs in CI, but results are not uploaded as code-scanning alerts because GitHub code scanning is not enabled for this private repository.
 - Architecture, threat model, API, MCP, evaluation, and troubleshooting docs.
 
 ## Not implemented yet
@@ -28,7 +28,6 @@ RepoPilot aims to help developers understand unfamiliar repositories, find relev
 - Complete Java/C++/TypeScript symbol and call-graph analysis.
 - Incremental per-file re-indexing (the current implementation replaces one repository's index).
 - Background indexing jobs.
-- Semantic embeddings/reranking and LLM-generated explanations (not implemented).
 - Authentication, multi-user tenancy, cloud repository import, approved patch application, and isolated command execution.
 - A meaningful 50+ question benchmark or production security certification.
 
