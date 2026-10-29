@@ -34,20 +34,20 @@ This section separates automated checks from claims the project does **not** mak
 
 | Evidence source | What it establishes | What it does not establish |
 | --- | --- | --- |
-| GitHub Actions CI | The configured lint, type-check, test, compile, synthetic evaluation, frontend build, Docker build, and optional MCP import jobs pass for the tested commit when the workflow is green. | Real-world retrieval quality, hosted production readiness, or a security certification. |
+| GitHub Actions CI | The configured lint, type-check, test, compile, synthetic evaluation, repository benchmark, frontend build, Docker/Compose validation and container API smoke test, and optional MCP import jobs pass for the tested commit when the workflow is green. | External security certification or production readiness. |
 | Synthetic retrieval evaluation | A deterministic 50-query suite exercises lexical path retrieval and negative/abstention cases across three fixture repositories and 15 hand-authored source files. | Performance on representative repositories, semantic retrieval quality, or answer quality from an LLM. |
-| Docker configuration | The image can be built in CI; Compose configures loopback publishing and container hardening. | That a deployed instance is secure in every environment or has undergone external penetration testing. |
+| Docker smoke test | The built image starts in CI, readiness responds, unauthenticated API access returns 401, and token-authenticated repository listing returns 200; Compose configuration is parsed. | A clean Doppler-driven Windows deployment, persistence/restart verification, or external penetration testing. |
 | Authentication checks | API routes under `/api/*` use a shared bearer token; health endpoints are public. | Multi-user identity, roles, per-user authorization, rate limiting, or transport security outside loopback. |
 
 **Latest repository CI:** [view workflow runs](https://github.com/vankudothuadhinaik/RepoPilot/actions/workflows/ci.yml). The badge above reflects the workflow status for `main`; check the run page for the exact commit and individual job results.
 
-CI publishes the full synthetic retrieval report as an artifact named `repopilot-retrieval-benchmark-<commit-sha>` for 30 days. The report includes Recall@5, Recall@10, MRR@10, abstention accuracy, and per-query expected paths/ranks. Run the same evaluation locally with:
+CI publishes the synthetic retrieval report as `repopilot-retrieval-benchmark-<commit-sha>` and a checked-out-repository performance baseline as `repopilot-repository-benchmark-<commit-sha>`, both for 30 days. The report includes Recall@5, Recall@10, MRR@10, abstention accuracy, and per-query expected paths/ranks. Run the same evaluation locally with:
 
 ```bash
 PYTHONPATH=src python evals/run_eval.py
 ```
 
-See [docs/evaluation.md](docs/evaluation.md) for methodology and limitations. No benchmark score is claimed here because scores should be read from the report generated for a specific commit.
+Run a local repository performance baseline with `PYTHONPATH=src python evals/benchmark_repository.py /path/to/repo --output report.json`. See [docs/evaluation.md](docs/evaluation.md) for methodology and limitations. No benchmark score is claimed here because scores should be read from the report generated for a specific commit.
 
 ## Architecture at a glance
 
