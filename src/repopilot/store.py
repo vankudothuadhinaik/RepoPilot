@@ -441,8 +441,13 @@ class Store:
                 return None
             new_summary = summary if summary is not None else row["summary"]
             new_status = status if status is not None else row["status"]
+            timestamp = now()
             db.execute("UPDATE memories SET summary=?,status=?,updated_at=? WHERE id=?",
-                       (new_summary, new_status, now(), memory_id))
+                       (new_summary, new_status, timestamp, memory_id))
+            db.execute("INSERT INTO audit_events VALUES (?,?,?,?,?,?,?)",
+                (str(uuid.uuid4()), row["repository_id"], "update_memory", memory_id, "success", timestamp,
+                 json.dumps({"summary_changed": summary is not None, "previous_status": row["status"],
+                             "new_status": new_status})))
             updated = db.execute("SELECT * FROM memories WHERE id=?", (memory_id,)).fetchone()
             return dict(updated)
 
@@ -461,6 +466,9 @@ class Store:
             row = db.execute("SELECT id FROM repositories WHERE id=?", (repo_id,)).fetchone()
             if not row:
                 return False
+            timestamp = now()
+            db.execute("INSERT INTO audit_events VALUES (?,?,?,?,?,?,?)",
+                (str(uuid.uuid4()), repo_id, "delete_repository", repo_id, "success", timestamp, "{}"))
             db.execute("DELETE FROM file_search WHERE repository_id=?", (repo_id,))
             db.execute("DELETE FROM repositories WHERE id=?", (repo_id,))
             return True
