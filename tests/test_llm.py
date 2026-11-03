@@ -202,3 +202,45 @@ def test_llm_rejects_malformed_provider_response_shape(monkeypatch):
     assert generate_grounded_answer(
         "Where is auth?", [{"path": "src/auth.py", "snippet": "Auth is here."}]
     ) is None
+
+
+
+def test_llm_rejects_cleartext_remote_provider_before_sending_credentials(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://provider.example/v1")
+
+    def unexpected_request(*args, **kwargs):
+        raise AssertionError("cleartext remote provider must not be contacted")
+
+    monkeypatch.setattr("repopilot.llm.urlopen", unexpected_request)
+    assert generate_grounded_answer(
+        "Where is auth?", [{"path": "src/auth.py", "snippet": "Auth is here."}]
+    ) is None
+
+
+def test_llm_allows_http_loopback_provider_for_local_development(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
+    monkeypatch.setattr(
+        "repopilot.llm.urlopen",
+        lambda *args, **kwargs: FakeResponse({
+            "choices": [{"message": {"content": '"Auth is here." [[src/auth.py]]'}}]
+        }),
+    )
+    assert generate_grounded_answer(
+        "Where is auth?", [{"path": "src/auth.py", "snippet": "Auth is here."}]
+    ) == '"Auth is here." [[src/auth.py]]'
+
+
+def test_llm_allows_http_ip_loopback_provider(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:11434/v1")
+    monkeypatch.setattr(
+        "repopilot.llm.urlopen",
+        lambda *args, **kwargs: FakeResponse({
+            "choices": [{"message": {"content": '"Auth is here." [[src/auth.py]]'}}
+        }),
+    )
+    assert generate_grounded_answer(
+        "Where is auth?", [{"path": "src/auth.py", "snippet": "Auth is here."}]
+    ) == '"Auth is here." [[src/auth.py]]'
