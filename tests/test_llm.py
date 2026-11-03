@@ -238,7 +238,7 @@ def test_llm_allows_http_ip_loopback_provider(monkeypatch):
     monkeypatch.setattr(
         "repopilot.llm.urlopen",
         lambda *args, **kwargs: FakeResponse({
-            "choices": [{"message": {"content": '"Auth is here." [[src/auth.py]]'}}
+            "choices": [{"message": {"content": '"Auth is here." [[src/auth.py]]'}}]
         }),
     )
     assert generate_grounded_answer(
