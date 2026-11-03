@@ -333,3 +333,43 @@ def test_fallback_search_uses_same_path_boost_and_ignores_punctuation_only_queri
 
     assert results[0]["path"] == "src/auth_token.py"
     assert any(item["path"] == "docs/guide.md" for item in results)
+
+
+
+def test_memory_updates_are_audited_without_storing_summary_text(fixture_repo, store):
+    repo = store.index(index_repository(fixture_repo))
+    memory = store.create_memory(repo["id"], "decision", "initial summary", ["README.md"])
+    store.update_memory(memory["id"], summary="revised sensitive summary", status="verified")
+
+    with store.connect() as db:
+        event = db.execute(
+            "SELECT action, target, outcome, details_json FROM audit_events "
+            "WHERE repository_id=? AND action='update_memory'",
+            (repo["id"],),
+        ).fetchone()
+    assert event is not None
+    assert event["target"] == memory["id"]
+    assert event["outcome"] == "success"
+    details = json.loads(event["details_json"])
+    assert details == {
+        "summary_changed": True,
+        "previous_status": "proposed",
+        "new_status": "verified",
+    }
+    assert "revised sensitive summary" not in event["details_json"]
+
+
+def test_repository_deletion_is_audited(fixture_repo, store):
+    repo = store.index(index_repository(fixture_repo))
+    repo_id = repo["id"]
+    assert store.delete_repository(repo_id)
+
+    with store.connect() as db:
+        event = db.execute(
+            "SELECT action, target, outcome FROM audit_events "
+            "WHERE repository_id=? AND action='delete_repository'",
+            (repo_id,),
+        ).fetchone()
+    assert event is not None
+    assert event["target"] == repo_id
+    assert event["outcome"] == "success"
