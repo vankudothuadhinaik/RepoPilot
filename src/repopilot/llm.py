@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import os
@@ -17,7 +18,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _provider_url(raw: str) -> str | None:
-    """Accept only explicit HTTP(S) provider base URLs with a hostname."""
+    """Accept HTTPS providers, allowing plain HTTP only for loopback development."""
     try:
         parsed = urlsplit(raw)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
@@ -30,9 +31,19 @@ def _provider_url(raw: str) -> str | None:
         port = parsed.port
         if port is not None and not 1 <= port <= 65535:
             return None
-        hostname = parsed.hostname.encode("idna").decode("ascii")
+        hostname = parsed.hostname.encode("idna").decode("ascii").lower()
         if not hostname or any(not label or len(label) > 63 for label in hostname.split(".")):
             return None
+        if parsed.scheme == "http":
+            # Never send bearer credentials over cleartext to a remote provider.
+            # Exact localhost and IP loopback literals remain available for local
+            # development servers (e.g. Ollama or a local OpenAI-compatible stub).
+            try:
+                is_loopback = ipaddress.ip_address(hostname).is_loopback
+            except ValueError:
+                is_loopback = hostname == "localhost"
+            if not is_loopback:
+                return None
         return raw.rstrip("/")
     except (ValueError, UnicodeError):
         return None
